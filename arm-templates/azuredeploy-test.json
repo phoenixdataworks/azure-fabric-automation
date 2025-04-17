@@ -17,6 +17,7 @@
     },
     "automationAccountName": {
       "type": "string",
+      "minLength": 1,
       "metadata": {
         "description": "Name of the Azure Automation account"
       }
@@ -30,6 +31,7 @@
     },
     "fabricCapacityName": {
       "type": "string",
+      "minLength": 1,
       "metadata": {
         "description": "Name of the Microsoft Fabric capacity to manage"
       }
@@ -71,12 +73,24 @@
       "type": "string",
       "defaultValue": "06:05:00",
       "metadata": {
-        "description": "Time to scale up the capacity to F64 (HH:MM:SS)"
+        "description": "Time to scale up the capacity (HH:MM:SS)"
       }
     },
     "scaleUpSku": {
       "type": "string",
       "defaultValue": "F64",
+      "allowedValues": [
+        "F2",
+        "F4",
+        "F8",
+        "F16",
+        "F32",
+        "F64",
+        "F128",
+        "F256",
+        "F512",
+        "F1024"
+      ],
       "metadata": {
         "description": "SKU to scale up the capacity to during peak usage"
       }
@@ -85,7 +99,7 @@
       "type": "string",
       "defaultValue": "17:45:00",
       "metadata": {
-        "description": "Time to scale down from F64 to F2 (HH:MM:SS)"
+        "description": "Time to scale down the capacity (HH:MM:SS)"
       }
     },
     "stopTime": {
@@ -126,6 +140,7 @@
     "webhookExpiryInDays": {
       "type": "int",
       "defaultValue": 365,
+      "minValue": 1,
       "metadata": {
         "description": "Number of days until webhooks expire"
       }
@@ -136,112 +151,81 @@
       "metadata": {
         "description": "Tags for resources"
       }
+    },
+    "scheduleStartTime": {
+      "type": "string",
+      "defaultValue": "[utcNow('yyyy-MM-ddTHH:mm:ssZ')]",
+      "metadata": {
+        "description": "Start time for schedules (at least 5 minutes in the future)"
+      }
+    },
+    "defaultSku": {
+      "type": "string",
+      "defaultValue": "F2",
+      "allowedValues": [
+        "F2",
+        "F4",
+        "F8",
+        "F16",
+        "F32",
+        "F64",
+        "F128",
+        "F256",
+        "F512",
+        "F1024"
+      ],
+      "metadata": {
+        "description": "Default SKU for scaling down"
+      }
     }
   },
   "variables": {
     "automationAccountId": "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]",
-    "fabricCapacityId": "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')))]"
+    "fabricCapacityId": "[resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName'))]",
+    "modules": [
+      {
+        "name": "Az.Accounts",
+        "uri": "https://www.powershellgallery.com/api/v2/package/Az.Accounts/2.12.1"
+      },
+      {
+        "name": "Az.Automation",
+        "uri": "https://www.powershellgallery.com/api/v2/package/Az.Automation/1.7.3"
+      }
+    ]
   },
   "resources": [
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-10-01",
-      "name": "automationResources",
+      "type": "Microsoft.Automation/automationAccounts",
+      "apiVersion": "2022-08-08",
+      "name": "[parameters('automationAccountName')]",
       "condition": "[parameters('createNewAutomationAccount')]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts'], json('{}'))]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
       "properties": {
-        "mode": "Incremental",
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "automationAccountName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure Automation account"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the resources"
-              }
-            },
-            "tagsByResource": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags for resources"
-              }
-            }
-          },
-          "variables": {
-            "modules": [
-              {
-                "name": "Az.Accounts",
-                "uri": "https://www.powershellgallery.com/api/v2/package/Az.Accounts/2.12.1"
-              },
-              {
-                "name": "Az.Automation",
-                "uri": "https://www.powershellgallery.com/api/v2/package/Az.Automation/1.7.3"
-              }
-            ]
-          },
-          "resources": [
-            {
-              "type": "Microsoft.Automation/automationAccounts",
-              "apiVersion": "2021-06-22",
-              "name": "[parameters('automationAccountName')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts'], json('{}'))]",
-              "identity": {
-                "type": "SystemAssigned"
-              },
-              "properties": {
-                "sku": {
-                  "name": "Basic"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/modules",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/', variables('modules')[copyIndex()].name)]",
-              "location": "[parameters('location')]",
-              "dependsOn": [
-                "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
-              ],
-              "copy": {
-                "name": "modulesCopy",
-                "count": "[length(variables('modules'))]"
-              },
-              "properties": {
-                "contentLink": {
-                  "uri": "[variables('modules')[copyIndex()].uri]"
-                }
-              }
-            }
-          ],
-          "outputs": {
-            "automationAccountId": {
-              "type": "string",
-              "value": "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
-            },
-            "principalId": {
-              "type": "string",
-              "value": "[reference(resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName')), '2021-06-22', 'Full').identity.principalId]"
-            }
-          }
-        },
-        "parameters": {
-          "automationAccountName": {
-            "value": "[parameters('automationAccountName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tagsByResource": {
-            "value": "[parameters('tagsByResource')]"
-          }
+        "sku": {
+          "name": "Basic"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/modules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/', variables('modules')[copyIndex()].name)]",
+      "condition": "[parameters('createNewAutomationAccount')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "copy": {
+        "name": "modulesCopy",
+        "count": "[length(variables('modules'))]"
+      },
+      "properties": {
+        "contentLink": {
+          "uri": "[variables('modules')[copyIndex()].uri]"
         }
       }
     },
@@ -252,559 +236,311 @@
       "condition": "[parameters('createNewFabricCapacity')]",
       "location": "[parameters('location')]",
       "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Fabric/capacities'), parameters('tagsByResource')['Microsoft.Fabric/capacities'], json('{}'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
       "sku": {
         "name": "[parameters('fabricCapacitySku')]"
       },
       "properties": {
         "administration": {
           "members": [
-            "[concat('https://graph.windows.net/', subscription().tenantId, '/users/', reference('Microsoft.Resources/deployments/GetObjectId', '2019-10-01').outputs.principalId.value)]"
+            "[if(parameters('createNewAutomationAccount'), reference(resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName')), '2022-08-08', 'Full').identity.principalId, '')]"
           ]
         }
       }
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-10-01",
-      "name": "GetObjectId",
-      "condition": "[parameters('createNewFabricCapacity')]",
-      "properties": {
-        "mode": "Incremental",
-        "expressionEvaluationOptions": {
-          "scope": "inner"
-        },
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {},
-          "variables": {},
-          "resources": [],
-          "outputs": {
-            "principalId": {
-              "type": "string",
-              "value": "[reference('Microsoft.Resources/deployments/dummyDeployment', '2019-10-01').outputs.principalId.value]"
-            }
-          }
-        }
-      },
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Start-FabricCapacity')]",
+      "location": "[parameters('location')]",
       "dependsOn": [
-        "dummyDeployment"
-      ]
-    },
-    {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-10-01",
-      "name": "dummyDeployment",
-      "condition": "[parameters('createNewFabricCapacity')]",
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
       "properties": {
-        "mode": "Incremental",
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "resources": [],
-          "outputs": {
-            "principalId": {
-              "type": "string",
-              "value": "[subscription().identity.objectId]"
-            }
-          }
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Start-FabricCapacity.ps1",
+          "version": "1.0.0.0"
         }
       }
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-10-01",
-      "name": "runbooksDeployment",
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Stop-FabricCapacity')]",
+      "location": "[parameters('location')]",
       "dependsOn": [
-        "automationResources"
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Stop-FabricCapacity.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Scale-FabricCapacity')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Scale-FabricCapacity.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Get-FabricCapacityStatus')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Get-FabricCapacityStatus.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacity')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Schedule-FabricCapacity.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacityPattern')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Schedule-FabricCapacityPattern.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Create-FabricCapacityWebhooks')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Create-FabricCapacityWebhooks.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Create-FabricScalingWebhooks')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
+      ],
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
+      "properties": {
+        "runbookType": "PowerShell72",
+        "logVerbose": true,
+        "logProgress": true,
+        "logActivityTrace": 1,
+        "publishContentLink": {
+          "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Create-FabricScalingWebhooks.ps1",
+          "version": "1.0.0.0"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/schedules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacityPattern-Setup')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Schedule-FabricCapacityPattern')]"
       ],
       "properties": {
-        "mode": "Incremental",
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "automationAccountName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure Automation account"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the resources"
-              }
-            },
-            "tagsByResource": {
-              "type": "object",
-              "defaultValue": {},
-              "metadata": {
-                "description": "Tags for resources"
-              }
-            }
-          },
-          "variables": {},
-          "resources": [
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Start-FabricCapacity')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Start-FabricCapacity.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Stop-FabricCapacity')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Stop-FabricCapacity.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Scale-FabricCapacity')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Scale-FabricCapacity.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Get-FabricCapacityStatus')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Get-FabricCapacityStatus.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacity')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Schedule-FabricCapacity.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacityPattern')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Schedule-FabricCapacityPattern.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Create-FabricCapacityWebhooks')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Create-FabricCapacityWebhooks.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/runbooks",
-              "apiVersion": "2019-06-01",
-              "name": "[concat(parameters('automationAccountName'), '/Create-FabricScalingWebhooks')]",
-              "location": "[parameters('location')]",
-              "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Automation/automationAccounts/runbooks'), parameters('tagsByResource')['Microsoft.Automation/automationAccounts/runbooks'], json('{}'))]",
-              "properties": {
-                "runbookType": "PowerShell",
-                "logVerbose": true,
-                "logProgress": true,
-                "logActivityTrace": 1,
-                "publishContentLink": {
-                  "uri": "https://raw.githubusercontent.com/Azure/azure-fabric-automation/main/azure-runbooks/Create-FabricScalingWebhooks.ps1",
-                  "version": "1.0.0.0"
-                }
-              }
-            }
-          ],
-          "outputs": {}
-        },
-        "parameters": {
-          "automationAccountName": {
-            "value": "[parameters('automationAccountName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "tagsByResource": {
-            "value": "[parameters('tagsByResource')]"
-          }
-        }
+        "startTime": "[dateTimeAdd(parameters('scheduleStartTime'), 'PT5M')]",
+        "expiryTime": "[dateTimeAdd(parameters('scheduleStartTime'), 'PT1H')]",
+        "interval": 1,
+        "frequency": "OneTime",
+        "timeZone": "[parameters('timeZone')]",
+        "advancedSchedule": {}
       }
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-10-01",
-      "name": "schedulesDeployment",
+      "type": "Microsoft.Automation/automationAccounts/jobSchedules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/', guid(concat(parameters('automationAccountName'), 'Schedule-FabricCapacityPattern-Setup')))]",
       "dependsOn": [
-        "runbooksDeployment"
+        "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), 'Schedule-FabricCapacityPattern-Setup')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Schedule-FabricCapacityPattern')]"
       ],
       "properties": {
-        "mode": "Incremental",
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "automationAccountName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure Automation account"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the resources"
-              }
-            },
-            "fabricCapacityId": {
-              "type": "string",
-              "metadata": {
-                "description": "Resource ID of the Fabric capacity"
-              }
-            },
-            "startTime": {
-              "type": "string",
-              "metadata": {
-                "description": "Time to start the capacity (HH:MM:SS)"
-              }
-            },
-            "scaleUpTime": {
-              "type": "string",
-              "metadata": {
-                "description": "Time to scale up the capacity (HH:MM:SS)"
-              }
-            },
-            "scaleUpSku": {
-              "type": "string",
-              "metadata": {
-                "description": "SKU to scale up to"
-              }
-            },
-            "scaleDownTime": {
-              "type": "string",
-              "metadata": {
-                "description": "Time to scale down the capacity (HH:MM:SS)"
-              }
-            },
-            "stopTime": {
-              "type": "string",
-              "metadata": {
-                "description": "Time to stop the capacity (HH:MM:SS)"
-              }
-            },
-            "timeZone": {
-              "type": "string",
-              "metadata": {
-                "description": "Time zone for the schedules"
-              }
-            },
-            "weekDaysOnly": {
-              "type": "bool",
-              "metadata": {
-                "description": "Whether to run only on weekdays"
-              }
-            },
-            "scheduleDays": {
-              "type": "array",
-              "metadata": {
-                "description": "Days of the week to run the schedules"
-              }
-            },
-            "defaultSku": {
-              "type": "string",
-              "defaultValue": "F2",
-              "metadata": {
-                "description": "Default SKU for the capacity"
-              }
-            }
-          },
-          "variables": {},
-          "resources": [
-            {
-              "type": "Microsoft.Automation/automationAccounts/schedules",
-              "apiVersion": "2022-08-08",
-              "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacityPattern-Setup')]",
-              "properties": {
-                "startTime": "[utcNow('yyyy-MM-ddTHH:mm:ss')]",
-                "expiryTime": "[dateTimeAdd(utcNow('yyyy-MM-ddTHH:mm:ss'), 'PT1H')]",
-                "interval": 1,
-                "frequency": "OneTime",
-                "timeZone": "[parameters('timeZone')]",
-                "advancedSchedule": {}
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/jobSchedules",
-              "apiVersion": "2022-08-08",
-              "name": "[concat(parameters('automationAccountName'), '/', guid(concat(parameters('automationAccountName'), 'Schedule-FabricCapacityPattern-Setup')))]",
-              "dependsOn": [
-                "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), 'Schedule-FabricCapacityPattern-Setup')]",
-                "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Schedule-FabricCapacityPattern')]"
-              ],
-              "properties": {
-                "schedule": {
-                  "name": "Schedule-FabricCapacityPattern-Setup"
-                },
-                "runbook": {
-                  "name": "Schedule-FabricCapacityPattern"
-                },
-                "parameters": {
-                  "ResourceGroupName": "[resourceGroup().name]",
-                  "AutomationAccountName": "[parameters('automationAccountName')]",
-                  "CapacityId": "[parameters('fabricCapacityId')]",
-                  "StartTime": "[parameters('startTime')]",
-                  "ScaleUpTime": "[parameters('scaleUpTime')]",
-                  "ScaleUpSku": "[parameters('scaleUpSku')]",
-                  "ScaleDownTime": "[parameters('scaleDownTime')]",
-                  "StopTime": "[parameters('stopTime')]",
-                  "TimeZone": "[parameters('timeZone')]",
-                  "WeekDaysOnly": "[string(parameters('weekDaysOnly'))]",
-                  "ScheduleDays": "[string(parameters('scheduleDays'))]",
-                  "DefaultSku": "[parameters('defaultSku')]"
-                }
-              }
-            }
-          ],
-          "outputs": {}
+        "schedule": {
+          "name": "Schedule-FabricCapacityPattern-Setup"
+        },
+        "runbook": {
+          "name": "Schedule-FabricCapacityPattern"
         },
         "parameters": {
-          "automationAccountName": {
-            "value": "[parameters('automationAccountName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "fabricCapacityId": {
-            "value": "[variables('fabricCapacityId')]"
-          },
-          "startTime": {
-            "value": "[parameters('startTime')]"
-          },
-          "scaleUpTime": {
-            "value": "[parameters('scaleUpTime')]"
-          },
-          "scaleUpSku": {
-            "value": "[parameters('scaleUpSku')]"
-          },
-          "scaleDownTime": {
-            "value": "[parameters('scaleDownTime')]"
-          },
-          "stopTime": {
-            "value": "[parameters('stopTime')]"
-          },
-          "timeZone": {
-            "value": "[parameters('timeZone')]"
-          },
-          "weekDaysOnly": {
-            "value": "[parameters('weekDaysOnly')]"
-          },
-          "scheduleDays": {
-            "value": "[parameters('scheduleDays')]"
-          },
-          "defaultSku": {
-            "value": "[parameters('fabricCapacitySku')]"
-          }
+          "ResourceGroupName": "[resourceGroup().name]",
+          "AutomationAccountName": "[parameters('automationAccountName')]",
+          "CapacityId": "[variables('fabricCapacityId')]",
+          "StartTime": "[parameters('startTime')]",
+          "ScaleUpTime": "[parameters('scaleUpTime')]",
+          "ScaleUpSku": "[parameters('scaleUpSku')]",
+          "ScaleDownTime": "[parameters('scaleDownTime')]",
+          "StopTime": "[parameters('stopTime')]",
+          "TimeZone": "[parameters('timeZone')]",
+          "WeekDaysOnly": "[string(parameters('weekDaysOnly'))]",
+          "ScheduleDays": "[string(replace(string(parameters('scheduleDays')), '\"', ''''))]",
+          "DefaultSku": "[parameters('defaultSku')]",
+          "ScheduleStartTime": "[parameters('scheduleStartTime')]"
         }
       }
     },
     {
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-10-01",
-      "name": "webhooksDeployment",
+      "type": "Microsoft.Automation/automationAccounts/schedules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Create-FabricCapacityWebhooks-Setup')]",
       "condition": "[parameters('createWebhooks')]",
       "dependsOn": [
-        "runbooksDeployment"
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Create-FabricCapacityWebhooks')]"
       ],
       "properties": {
-        "mode": "Incremental",
-        "template": {
-          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
-          "contentVersion": "1.0.0.0",
-          "parameters": {
-            "automationAccountName": {
-              "type": "string",
-              "metadata": {
-                "description": "Name of the Azure Automation account"
-              }
-            },
-            "location": {
-              "type": "string",
-              "metadata": {
-                "description": "Azure region for the resources"
-              }
-            },
-            "fabricCapacityId": {
-              "type": "string",
-              "metadata": {
-                "description": "Resource ID of the Fabric capacity"
-              }
-            },
-            "webhookExpiryInDays": {
-              "type": "int",
-              "metadata": {
-                "description": "Number of days until webhooks expire"
-              }
-            }
-          },
-          "variables": {},
-          "resources": [
-            {
-              "type": "Microsoft.Automation/automationAccounts/schedules",
-              "apiVersion": "2022-08-08",
-              "name": "[concat(parameters('automationAccountName'), '/Create-FabricCapacityWebhooks-Setup')]",
-              "properties": {
-                "startTime": "[utcNow('yyyy-MM-ddTHH:mm:ss')]",
-                "expiryTime": "[dateTimeAdd(utcNow('yyyy-MM-ddTHH:mm:ss'), 'PT1H')]",
-                "interval": 1,
-                "frequency": "OneTime",
-                "timeZone": "UTC",
-                "advancedSchedule": {}
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/jobSchedules",
-              "apiVersion": "2022-08-08",
-              "name": "[concat(parameters('automationAccountName'), '/', guid(concat(parameters('automationAccountName'), 'Create-FabricCapacityWebhooks-Setup')))]",
-              "dependsOn": [
-                "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), 'Create-FabricCapacityWebhooks-Setup')]",
-                "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Create-FabricCapacityWebhooks')]"
-              ],
-              "properties": {
-                "schedule": {
-                  "name": "Create-FabricCapacityWebhooks-Setup"
-                },
-                "runbook": {
-                  "name": "Create-FabricCapacityWebhooks"
-                },
-                "parameters": {
-                  "ResourceGroupName": "[resourceGroup().name]",
-                  "AutomationAccountName": "[parameters('automationAccountName')]",
-                  "CapacityId": "[parameters('fabricCapacityId')]",
-                  "WebhookExpiryInDays": "[string(parameters('webhookExpiryInDays'))]",
-                  "IsEnabled": "true"
-                }
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/schedules",
-              "apiVersion": "2022-08-08",
-              "name": "[concat(parameters('automationAccountName'), '/Create-FabricScalingWebhooks-Setup')]",
-              "properties": {
-                "startTime": "[utcNow('yyyy-MM-ddTHH:mm:ss')]",
-                "expiryTime": "[dateTimeAdd(utcNow('yyyy-MM-ddTHH:mm:ss'), 'PT1H')]",
-                "interval": 1,
-                "frequency": "OneTime",
-                "timeZone": "UTC",
-                "advancedSchedule": {}
-              }
-            },
-            {
-              "type": "Microsoft.Automation/automationAccounts/jobSchedules",
-              "apiVersion": "2022-08-08",
-              "name": "[concat(parameters('automationAccountName'), '/', guid(concat(parameters('automationAccountName'), 'Create-FabricScalingWebhooks-Setup')))]",
-              "dependsOn": [
-                "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), 'Create-FabricScalingWebhooks-Setup')]",
-                "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Create-FabricScalingWebhooks')]"
-              ],
-              "properties": {
-                "schedule": {
-                  "name": "Create-FabricScalingWebhooks-Setup"
-                },
-                "runbook": {
-                  "name": "Create-FabricScalingWebhooks"
-                },
-                "parameters": {
-                  "ResourceGroupName": "[resourceGroup().name]",
-                  "AutomationAccountName": "[parameters('automationAccountName')]",
-                  "CapacityId": "[parameters('fabricCapacityId')]",
-                  "WebhookExpiryInDays": "[string(parameters('webhookExpiryInDays'))]",
-                  "IsEnabled": "true"
-                }
-              }
-            }
-          ],
-          "outputs": {}
+        "startTime": "[dateTimeAdd(parameters('scheduleStartTime'), 'PT5M')]",
+        "expiryTime": "[dateTimeAdd(parameters('scheduleStartTime'), 'PT1H')]",
+        "interval": 1,
+        "frequency": "OneTime",
+        "timeZone": "[parameters('timeZone')]",
+        "advancedSchedule": {}
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/jobSchedules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/', guid(concat(parameters('automationAccountName'), 'Create-FabricCapacityWebhooks-Setup')))]",
+      "condition": "[parameters('createWebhooks')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), 'Create-FabricCapacityWebhooks-Setup')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Create-FabricCapacityWebhooks')]"
+      ],
+      "properties": {
+        "schedule": {
+          "name": "Create-FabricCapacityWebhooks-Setup"
+        },
+        "runbook": {
+          "name": "Create-FabricCapacityWebhooks"
         },
         "parameters": {
-          "automationAccountName": {
-            "value": "[parameters('automationAccountName')]"
-          },
-          "location": {
-            "value": "[parameters('location')]"
-          },
-          "fabricCapacityId": {
-            "value": "[variables('fabricCapacityId')]"
-          },
-          "webhookExpiryInDays": {
-            "value": "[parameters('webhookExpiryInDays')]"
-          }
+          "ResourceGroupName": "[resourceGroup().name]",
+          "AutomationAccountName": "[parameters('automationAccountName')]",
+          "CapacityId": "[variables('fabricCapacityId')]",
+          "WebhookExpiryInDays": "[string(parameters('webhookExpiryInDays'))]",
+          "IsEnabled": "true",
+          "ScheduleStartTime": "[parameters('scheduleStartTime')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/schedules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/Create-FabricScalingWebhooks-Setup')]",
+      "condition": "[parameters('createWebhooks')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Create-FabricScalingWebhooks')]"
+      ],
+      "properties": {
+        "startTime": "[dateTimeAdd(parameters('scheduleStartTime'), 'PT5M')]",
+        "expiryTime": "[dateTimeAdd(parameters('scheduleStartTime'), 'PT1H')]",
+        "interval": 1,
+        "frequency": "OneTime",
+        "timeZone": "[parameters('timeZone')]",
+        "advancedSchedule": {}
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/jobSchedules",
+      "apiVersion": "2022-08-08",
+      "name": "[concat(parameters('automationAccountName'), '/', guid(concat(parameters('automationAccountName'), 'Create-FabricScalingWebhooks-Setup')))]",
+      "condition": "[parameters('createWebhooks')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), 'Create-FabricScalingWebhooks-Setup')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Create-FabricScalingWebhooks')]"
+      ],
+      "properties": {
+        "schedule": {
+          "name": "Create-FabricScalingWebhooks-Setup"
+        },
+        "runbook": {
+          "name": "Create-FabricScalingWebhooks"
+        },
+        "parameters": {
+          "ResourceGroupName": "[resourceGroup().name]",
+          "AutomationAccountName": "[parameters('automationAccountName')]",
+          "CapacityId": "[variables('fabricCapacityId')]",
+          "WebhookExpiryInDays": "[string(parameters('webhookExpiryInDays'))]",
+          "IsEnabled": "true",
+          "ScheduleStartTime": "[parameters('scheduleStartTime')]"
         }
       }
     }
@@ -819,4 +555,4 @@
       "value": "[variables('fabricCapacityId')]"
     }
   }
-} 
+}
