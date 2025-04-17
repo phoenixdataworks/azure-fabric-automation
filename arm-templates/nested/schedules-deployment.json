@@ -1,0 +1,174 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "automationAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure Automation account"
+      }
+    },
+    "fabricCapacityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Microsoft Fabric capacity to manage"
+      }
+    },
+    "fabricCapacityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Microsoft Fabric capacity to manage"
+      }
+    },
+    "startTime": {
+      "type": "string",
+      "defaultValue": "06:00:00",
+      "metadata": {
+        "description": "Time to start the capacity (HH:MM:SS)"
+      }
+    },
+    "scaleUpTime": {
+      "type": "string",
+      "defaultValue": "06:05:00",
+      "metadata": {
+        "description": "Time to scale up the capacity (HH:MM:SS)"
+      }
+    },
+    "scaleUpSku": {
+      "type": "string",
+      "defaultValue": "F64",
+      "metadata": {
+        "description": "SKU to scale up the capacity to during peak usage"
+      }
+    },
+    "scaleDownTime": {
+      "type": "string",
+      "defaultValue": "17:45:00",
+      "metadata": {
+        "description": "Time to scale down the capacity (HH:MM:SS)"
+      }
+    },
+    "stopTime": {
+      "type": "string",
+      "defaultValue": "18:00:00",
+      "metadata": {
+        "description": "Time to stop the capacity (HH:MM:SS)"
+      }
+    },
+    "timeZone": {
+      "type": "string",
+      "defaultValue": "Pacific Standard Time",
+      "metadata": {
+        "description": "Time zone for the schedules"
+      }
+    },
+    "weekDaysOnly": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Whether to run only on weekdays"
+      }
+    },
+    "scheduleDays": {
+      "type": "array",
+      "defaultValue": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      "metadata": {
+        "description": "Days of the week to run the schedules"
+      }
+    },
+    "fabricCapacitySku": {
+      "type": "string",
+      "defaultValue": "F2",
+      "metadata": {
+        "description": "Default SKU of the Microsoft Fabric capacity (for scale down)"
+      }
+    }
+  },
+  "variables": {
+    "capacityName": "[parameters('fabricCapacityName')]",
+    "schedules": [
+      {
+        "name": "[concat('Start-', variables('capacityName'))]",
+        "description": "[concat('Schedule to start the ', variables('capacityName'), ' Fabric capacity at ', parameters('startTime'))]",
+        "startTime": "[parameters('startTime')]",
+        "runbookName": "Start-FabricCapacity",
+        "parameters": {
+          "CapacityId": "[parameters('fabricCapacityId')]"
+        }
+      },
+      {
+        "name": "[concat('ScaleUp-', variables('capacityName'), '-', parameters('scaleUpSku'))]",
+        "description": "[concat('Schedule to scale the ', variables('capacityName'), ' Fabric capacity to ', parameters('scaleUpSku'), ' at ', parameters('scaleUpTime'))]",
+        "startTime": "[parameters('scaleUpTime')]",
+        "runbookName": "Scale-FabricCapacity",
+        "parameters": {
+          "CapacityId": "[parameters('fabricCapacityId')]",
+          "TargetSku": "[parameters('scaleUpSku')]"
+        }
+      },
+      {
+        "name": "[concat('ScaleDown-', variables('capacityName'), '-', parameters('fabricCapacitySku'))]",
+        "description": "[concat('Schedule to scale the ', variables('capacityName'), ' Fabric capacity to ', parameters('fabricCapacitySku'), ' at ', parameters('scaleDownTime'))]",
+        "startTime": "[parameters('scaleDownTime')]",
+        "runbookName": "Scale-FabricCapacity",
+        "parameters": {
+          "CapacityId": "[parameters('fabricCapacityId')]",
+          "TargetSku": "[parameters('fabricCapacitySku')]"
+        }
+      },
+      {
+        "name": "[concat('Stop-', variables('capacityName'))]",
+        "description": "[concat('Schedule to stop the ', variables('capacityName'), ' Fabric capacity at ', parameters('stopTime'))]",
+        "startTime": "[parameters('stopTime')]",
+        "runbookName": "Stop-FabricCapacity",
+        "parameters": {
+          "CapacityId": "[parameters('fabricCapacityId')]"
+        }
+      }
+    ],
+    "dayOfWeekSettings": "[if(parameters('weekDaysOnly'), createArray('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'), createArray('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Automation/automationAccounts/schedules",
+      "apiVersion": "2019-06-01",
+      "name": "[concat(parameters('automationAccountName'), '/', variables('schedules')[copyIndex()].name)]",
+      "copy": {
+        "name": "schedulesCopy",
+        "count": "[length(variables('schedules'))]"
+      },
+      "properties": {
+        "description": "[variables('schedules')[copyIndex()].description]",
+        "startTime": "[concat(utcNow('yyyy-MM-dd'), 'T', variables('schedules')[copyIndex()].startTime, 'Z')]",
+        "frequency": "Day",
+        "interval": 1,
+        "timeZone": "[parameters('timeZone')]",
+        "advancedSchedule": {
+          "weekDays": "[parameters('scheduleDays')]"
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Automation/automationAccounts/jobSchedules",
+      "apiVersion": "2019-06-01",
+      "name": "[concat(parameters('automationAccountName'), '/', guid(variables('schedules')[copyIndex()].name))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts/schedules', parameters('automationAccountName'), variables('schedules')[copyIndex()].name)]"
+      ],
+      "copy": {
+        "name": "jobSchedulesCopy",
+        "count": "[length(variables('schedules'))]"
+      },
+      "properties": {
+        "schedule": {
+          "name": "[variables('schedules')[copyIndex()].name]"
+        },
+        "runbook": {
+          "name": "[variables('schedules')[copyIndex()].runbookName]"
+        },
+        "parameters": "[variables('schedules')[copyIndex()].parameters]"
+      }
+    }
+  ],
+  "outputs": {}
+} 

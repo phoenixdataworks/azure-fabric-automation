@@ -1,0 +1,94 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "automationAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure Automation account"
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure region for the resources"
+      }
+    }
+  },
+  "variables": {
+    "runbooks": [
+      {
+        "name": "Start-FabricCapacity",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Start-FabricCapacity.ps1')]",
+        "type": "PowerShell",
+        "description": "Starts (resumes) a paused Fabric capacity"
+      },
+      {
+        "name": "Stop-FabricCapacity",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Stop-FabricCapacity.ps1')]",
+        "type": "PowerShell",
+        "description": "Stops (pauses) a running Fabric capacity"
+      },
+      {
+        "name": "Get-FabricCapacityStatus",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Get-FabricCapacityStatus.ps1')]",
+        "type": "PowerShell",
+        "description": "Retrieves the current status of a Fabric capacity"
+      },
+      {
+        "name": "Scale-FabricCapacity",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Scale-FabricCapacity.ps1')]",
+        "type": "PowerShell",
+        "description": "Scales a Fabric capacity to a specified SKU size"
+      },
+      {
+        "name": "Schedule-FabricCapacity",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Schedule-FabricCapacity.ps1')]",
+        "type": "PowerShell",
+        "description": "Creates simple start/stop schedules"
+      },
+      {
+        "name": "Schedule-FabricCapacityPattern",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Schedule-FabricCapacityPattern.ps1')]",
+        "type": "PowerShell",
+        "description": "Creates a complex schedule pattern with scaling"
+      },
+      {
+        "name": "Create-FabricCapacityWebhooks",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Create-FabricCapacityWebhooks.ps1')]",
+        "type": "PowerShell",
+        "description": "Creates webhooks for basic operations"
+      },
+      {
+        "name": "Create-FabricScalingWebhooks",
+        "uri": "[uri(deployment().properties.templateLink.uri, '../../azure-runbooks/Create-FabricScalingWebhooks.ps1')]",
+        "type": "PowerShell",
+        "description": "Creates webhooks for scaling operations"
+      }
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Automation/automationAccounts/runbooks",
+      "apiVersion": "2019-06-01",
+      "name": "[concat(parameters('automationAccountName'), '/', variables('runbooks')[copyIndex()].name)]",
+      "location": "[parameters('location')]",
+      "copy": {
+        "name": "runbooksCopy",
+        "count": "[length(variables('runbooks'))]"
+      },
+      "properties": {
+        "runbookType": "[variables('runbooks')[copyIndex()].type]",
+        "logVerbose": false,
+        "logProgress": false,
+        "logActivityTrace": 0,
+        "description": "[variables('runbooks')[copyIndex()].description]",
+        "publishContentLink": {
+          "uri": "[variables('runbooks')[copyIndex()].uri]",
+          "version": "1.0.0.0"
+        }
+      }
+    }
+  ],
+  "outputs": {}
+} 

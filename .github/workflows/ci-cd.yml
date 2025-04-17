@@ -1,0 +1,178 @@
+name: ARM Template CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'arm-templates/**'
+      - 'azure-runbooks/**'
+      - '.github/workflows/ci-cd.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'arm-templates/**'
+      - 'azure-runbooks/**'
+      - '.github/workflows/ci-cd.yml'
+  workflow_dispatch:
+
+env:
+  ARM_TEMPLATE_PATH: arm-templates/azuredeploy.json
+  RUNBOOKS_PATH: azure-runbooks
+
+jobs:
+  validate_arm_templates:
+    name: Validate ARM Templates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell-Action@v1
+        with:
+          pwsh-version: 7.4
+
+      - name: Install Az PowerShell module
+        shell: pwsh
+        run: |
+          Install-Module -Name Az -Force -AllowClobber -Scope CurrentUser -Repository PSGallery
+
+      - name: Validate ARM templates
+        shell: pwsh
+        run: |
+          # Get all ARM templates
+          $armTemplates = Get-ChildItem -Path arm-templates -Filter *.json -Recurse
+          $hasError = $false
+          
+          foreach ($template in $armTemplates) {
+            Write-Host "Validating template: $($template.FullName)"
+            
+            $output = Test-AzResourceGroupDeployment -ResourceGroupName "validation-rg" -TemplateFile $template.FullName -SkipTemplateParameterPrompt -ErrorAction SilentlyContinue
+            
+            if ($output -and $output.Count -gt 0) {
+              Write-Host "##[error]Template validation failed for $($template.FullName)"
+              foreach ($error in $output) {
+                Write-Host "##[error]$($error.Message)"
+              }
+              $hasError = $true
+            }
+          }
+          
+          if ($hasError) {
+            exit 1
+          }
+
+  validate_powershell_scripts:
+    name: Validate PowerShell Scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell-Action@v1
+        with:
+          pwsh-version: 7.4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module -Name PSScriptAnalyzer -Force -AllowClobber -Scope CurrentUser -Repository PSGallery
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path $env:RUNBOOKS_PATH -Recurse -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText
+          
+          if ($results) {
+            $results | Format-Table -AutoSize
+            Write-Warning "Found $($results.Count) issues in PowerShell scripts."
+            exit 1
+          }
+          else {
+            Write-Host "No issues found in PowerShell scripts."
+          }
+
+  build_and_package:
+    name: Build and Package
+    needs: [validate_arm_templates, validate_powershell_scripts]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup PowerShell
+        uses: PowerShell/PowerShell-Action@v1
+        with:
+          pwsh-version: 7.4
+
+      - name: Create marketplace package directory
+        shell: pwsh
+        run: |
+          New-Item -Path ./marketplace-package -ItemType Directory -Force
+          
+          # Copy ARM templates
+          Copy-Item -Path ./arm-templates -Destination ./marketplace-package/arm-templates -Recurse
+          
+          # Copy runbooks
+          Copy-Item -Path ./azure-runbooks -Destination ./marketplace-package/azure-runbooks -Recurse
+          
+          # Copy docs
+          Copy-Item -Path ./README.md -Destination ./marketplace-package/
+          Copy-Item -Path ./Automated-Deployment-Guide.md -Destination ./marketplace-package/
+          Copy-Item -Path ./Solution-Architecture.md -Destination ./marketplace-package/ -ErrorAction SilentlyContinue
+          
+          # Create marketplace package zip
+          Compress-Archive -Path ./marketplace-package/* -DestinationPath ./fabric-automation.zip -Force
+
+      - name: Upload marketplace package
+        uses: actions/upload-artifact@v3
+        with:
+          name: fabric-automation-package
+          path: ./fabric-automation.zip
+
+  deploy_to_test:
+    name: Deploy to Test Environment
+    needs: [build_and_package]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download marketplace package
+        uses: actions/download-artifact@v3
+        with:
+          name: fabric-automation-package
+          path: ./
+
+      - name: Extract package
+        shell: pwsh
+        run: |
+          Expand-Archive -Path ./fabric-automation.zip -DestinationPath ./package -Force
+
+      - name: Setup Azure CLI
+        uses: azure/setup-azure-cli@v1
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy ARM Template
+        uses: azure/arm-deploy@v1
+        with:
+          resourceGroupName: ${{ secrets.TEST_RESOURCE_GROUP }}
+          template: ./package/arm-templates/azuredeploy.json
+          parameters: >
+            automationAccountName=fabric-automation-test
+            fabricCapacityName=${{ secrets.TEST_FABRIC_CAPACITY_NAME }}
+            startTime=06:00:00
+            scaleDownTime=06:10:00
+            stopTime=18:00:00
+            timeZone=Pacific Standard Time
+            weekDaysOnly=true
+            createWebhooks=true
+            webhookExpiryInDays=365 

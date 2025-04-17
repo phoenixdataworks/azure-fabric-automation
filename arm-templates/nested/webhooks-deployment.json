@@ -1,0 +1,87 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "automationAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure Automation account"
+      }
+    },
+    "fabricCapacityName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Microsoft Fabric capacity to manage"
+      }
+    },
+    "fabricCapacityId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Microsoft Fabric capacity to manage"
+      }
+    },
+    "webhookExpiryInDays": {
+      "type": "int",
+      "defaultValue": 365,
+      "metadata": {
+        "description": "Number of days until webhooks expire"
+      }
+    }
+  },
+  "variables": {
+    "deploymentScriptName": "[concat('create-webhooks-', uniqueString(deployment().name))]",
+    "userManagedIdentityName": "[concat('id-', parameters('automationAccountName'))]",
+    "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+      "apiVersion": "2018-11-30",
+      "name": "[variables('userManagedIdentityName')]",
+      "location": "[resourceGroup().location]"
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "name": "[guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userManagedIdentityName')), resourceGroup().id, 'Contributor')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userManagedIdentityName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[variables('roleDefinitionId')]",
+        "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userManagedIdentityName')), '2018-11-30').principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2020-10-01",
+      "name": "[variables('deploymentScriptName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userManagedIdentityName')), resourceGroup().id, 'Contributor'))]"
+      ],
+      "identity": {
+        "type": "UserAssigned",
+        "userAssignedIdentities": {
+          "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userManagedIdentityName'))]": {}
+        }
+      },
+      "kind": "AzurePowerShell",
+      "properties": {
+        "azPowerShellVersion": "7.5",
+        "timeout": "PT30M",
+        "retentionInterval": "P1D",
+        "cleanupPreference": "OnSuccess",
+        "scriptContent": "param([string] $ResourceGroupName, [string] $AutomationAccountName, [string] $CapacityId, [string] $CapacityName, [int] $WebhookExpiryInDays)\n\n# Install required modules\nInstall-Module Az.Accounts -Force\nInstall-Module Az.Automation -Force\n\n# Basic operation webhooks (Start, Stop, Get-Status)\n$basicRunbooks = @(\n    @{Name = 'Start-FabricCapacity'; WebhookName = \"Start-$CapacityName\"; Parameters = @{CapacityId = $CapacityId}}\n    @{Name = 'Stop-FabricCapacity'; WebhookName = \"Stop-$CapacityName\"; Parameters = @{CapacityId = $CapacityId}}\n    @{Name = 'Get-FabricCapacityStatus'; WebhookName = \"Status-$CapacityName\"; Parameters = @{CapacityId = $CapacityId}}\n)\n\n# Scaling webhooks (F2, F4, F8, F16, F32, F64)\n$skuTiers = @('F2', 'F4', 'F8', 'F16', 'F32', 'F64')\n$scalingWebhooks = $skuTiers | ForEach-Object {\n    $sku = $_\n    @{\n        Name = 'Scale-FabricCapacity'\n        WebhookName = \"Scale-$CapacityName-$sku\"\n        Parameters = @{\n            CapacityId = $CapacityId\n            TargetSku = $sku\n        }\n    }\n}\n\n# Combine all webhooks\n$webhooks = $basicRunbooks + $scalingWebhooks\n\n# Create the webhooks\n$webhookResults = @{}\nforeach ($webhook in $webhooks) {\n    $params = @{\n        ResourceGroupName = $ResourceGroupName\n        AutomationAccountName = $AutomationAccountName\n        RunbookName = $webhook.Name\n        Name = $webhook.WebhookName\n        IsEnabled = $true\n        ExpiryTime = (Get-Date).AddDays($WebhookExpiryInDays)\n    }\n    \n    if ($webhook.Parameters) {\n        $params.Add('Parameters', $webhook.Parameters)\n    }\n    \n    try {\n        $result = New-AzAutomationWebhook @params\n        $webhookResults.Add($webhook.WebhookName, $result.WebhookURI)\n    }\n    catch {\n        Write-Error \"Failed to create webhook $($webhook.WebhookName): $_\"\n    }\n}\n\n# Output the webhook URLs\n$DeploymentScriptOutputs = @{\n    webhookUrls = $webhookResults\n}",
+        "arguments": "[concat('-ResourceGroupName ', resourceGroup().name, ' -AutomationAccountName ', parameters('automationAccountName'), ' -CapacityId \"', parameters('fabricCapacityId'), '\" -CapacityName \"', parameters('fabricCapacityName'), '\" -WebhookExpiryInDays ', parameters('webhookExpiryInDays'))]"
+      }
+    }
+  ],
+  "outputs": {
+    "webhookResults": {
+      "type": "object",
+      "value": "[reference(variables('deploymentScriptName')).outputs.webhookUrls]"
+    }
+  }
+} 

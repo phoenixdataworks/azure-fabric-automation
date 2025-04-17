@@ -1,0 +1,417 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/0.1.2-preview/CreateUIDefinition.MultiVm.json#",
+  "handler": "Microsoft.Azure.CreateUIDef",
+  "version": "0.1.2-preview",
+  "parameters": {
+    "basics": [
+      {
+        "name": "automationAccountInfo",
+        "type": "Microsoft.Common.Section",
+        "label": "Automation Account Settings",
+        "elements": [
+          {
+            "name": "createNewAutomationAccount",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Automation Account",
+            "defaultValue": "Create new",
+            "toolTip": "Select whether to create a new Automation account or use an existing one.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Create new",
+                  "value": true
+                },
+                {
+                  "label": "Use existing",
+                  "value": false
+                }
+              ],
+              "required": true
+            }
+          },
+          {
+            "name": "automationAccountName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Automation Account Name",
+            "defaultValue": "fabric-automation",
+            "toolTip": "The name of the Azure Automation account to create.",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-zA-Z0-9-]{3,63}$",
+              "validationMessage": "The Automation Account name must be between 3 and 63 characters long and can contain only letters, numbers, and hyphens."
+            },
+            "visible": "[basics('automationAccountInfo').createNewAutomationAccount]"
+          },
+          {
+            "name": "existingAutomationAccount",
+            "type": "Microsoft.Solutions.ResourceSelector",
+            "label": "Automation Account",
+            "resourceType": "Microsoft.Automation/automationAccounts",
+            "toolTip": "Select an existing Automation account.",
+            "visible": "[not(basics('automationAccountInfo').createNewAutomationAccount)]"
+          }
+        ]
+      },
+      {
+        "name": "fabricCapacityInfo",
+        "type": "Microsoft.Common.Section",
+        "label": "Fabric Capacity Settings",
+        "elements": [
+          {
+            "name": "createNewFabricCapacity",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Fabric Capacity",
+            "defaultValue": "Use existing",
+            "toolTip": "Select whether to create a new Microsoft Fabric capacity or use an existing one.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Create new",
+                  "value": true
+                },
+                {
+                  "label": "Use existing",
+                  "value": false
+                }
+              ],
+              "required": true
+            }
+          },
+          {
+            "name": "fabricCapacityName",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Fabric Capacity Name",
+            "defaultValue": "",
+            "toolTip": "The name of the Microsoft Fabric capacity to create.",
+            "constraints": {
+              "required": true,
+              "regex": "^[a-zA-Z0-9-]{3,63}$",
+              "validationMessage": "The Fabric Capacity name must be between 3 and 63 characters long and can contain only letters, numbers, and hyphens."
+            },
+            "visible": "[basics('fabricCapacityInfo').createNewFabricCapacity]"
+          },
+          {
+            "name": "existingFabricCapacity",
+            "type": "Microsoft.Solutions.ResourceSelector",
+            "label": "Fabric Capacity",
+            "resourceType": "Microsoft.Fabric/capacities",
+            "toolTip": "Select an existing Microsoft Fabric capacity.",
+            "visible": "[not(basics('fabricCapacityInfo').createNewFabricCapacity)]"
+          },
+          {
+            "name": "fabricCapacitySku",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Fabric Capacity SKU",
+            "toolTip": "The SKU size for the Microsoft Fabric capacity.",
+            "defaultValue": "F2",
+            "visible": "[basics('fabricCapacityInfo').createNewFabricCapacity]",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "F2 (Small)",
+                  "value": "F2"
+                },
+                {
+                  "label": "F4 (Medium)",
+                  "value": "F4"
+                },
+                {
+                  "label": "F8 (Large)",
+                  "value": "F8"
+                },
+                {
+                  "label": "F16 (X-Large)",
+                  "value": "F16"
+                },
+                {
+                  "label": "F32 (2X-Large)",
+                  "value": "F32"
+                },
+                {
+                  "label": "F64 (4X-Large)",
+                  "value": "F64"
+                },
+                {
+                  "label": "F128 (8X-Large)",
+                  "value": "F128"
+                },
+                {
+                  "label": "F256 (16X-Large)",
+                  "value": "F256"
+                },
+                {
+                  "label": "F512 (32X-Large)",
+                  "value": "F512"
+                },
+                {
+                  "label": "F1024 (64X-Large)",
+                  "value": "F1024"
+                }
+              ],
+              "required": true
+            }
+          }
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "name": "scheduleSettings",
+        "label": "Schedule Settings",
+        "elements": [
+          {
+            "name": "startTime",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Start Time (HH:MM)",
+            "defaultValue": "06:00",
+            "toolTip": "The time to start the capacity each day in 24-hour format (HH:MM).",
+            "constraints": {
+              "required": true,
+              "regex": "^([01]\\d|2[0-3]):([0-5]\\d)$",
+              "validationMessage": "Please enter a valid time in 24-hour format (HH:MM). Hours must be 00-23 and minutes must be 00-59."
+            }
+          },
+          {
+            "name": "scaleUpTime",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Scale Up Time (HH:MM)",
+            "defaultValue": "06:05",
+            "toolTip": "The time to scale up the capacity each day in 24-hour format (HH:MM).",
+            "constraints": {
+              "required": true,
+              "regex": "^([01]\\d|2[0-3]):([0-5]\\d)$",
+              "validationMessage": "Please enter a valid time in 24-hour format (HH:MM). Hours must be 00-23 and minutes must be 00-59."
+            }
+          },
+          {
+            "name": "scaleUpSku",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Scale Up Capacity Size",
+            "toolTip": "The SKU size to scale up to during peak usage.",
+            "defaultValue": "F64",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "F2 (Small)",
+                  "value": "F2"
+                },
+                {
+                  "label": "F4 (Medium)",
+                  "value": "F4"
+                },
+                {
+                  "label": "F8 (Large)",
+                  "value": "F8"
+                },
+                {
+                  "label": "F16 (X-Large)",
+                  "value": "F16"
+                },
+                {
+                  "label": "F32 (2X-Large)",
+                  "value": "F32"
+                },
+                {
+                  "label": "F64 (4X-Large)",
+                  "value": "F64"
+                },
+                {
+                  "label": "F128 (8X-Large)",
+                  "value": "F128"
+                },
+                {
+                  "label": "F256 (16X-Large)",
+                  "value": "F256"
+                },
+                {
+                  "label": "F512 (32X-Large)",
+                  "value": "F512"
+                },
+                {
+                  "label": "F1024 (64X-Large)",
+                  "value": "F1024"
+                }
+              ],
+              "required": true
+            }
+          },
+          {
+            "name": "scaleDownTime",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Scale Down Time (HH:MM)",
+            "defaultValue": "17:45",
+            "toolTip": "The time to scale down the capacity to the default size each day in 24-hour format (HH:MM).",
+            "constraints": {
+              "required": true,
+              "regex": "^([01]\\d|2[0-3]):([0-5]\\d)$",
+              "validationMessage": "Please enter a valid time in 24-hour format (HH:MM). Hours must be 00-23 and minutes must be 00-59."
+            }
+          },
+          {
+            "name": "stopTime",
+            "type": "Microsoft.Common.TextBox",
+            "label": "Stop Time (HH:MM)",
+            "defaultValue": "18:00",
+            "toolTip": "The time to stop the capacity each day in 24-hour format (HH:MM).",
+            "constraints": {
+              "required": true,
+              "regex": "^([01]\\d|2[0-3]):([0-5]\\d)$",
+              "validationMessage": "Please enter a valid time in 24-hour format (HH:MM). Hours must be 00-23 and minutes must be 00-59."
+            }
+          },
+          {
+            "name": "timeZone",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Time Zone",
+            "toolTip": "The time zone to use for all schedules.",
+            "defaultValue": "Pacific Standard Time",
+            "constraints": {
+              "required": true,
+              "allowedValues": [
+                {
+                  "label": "Pacific Standard Time",
+                  "value": "Pacific Standard Time"
+                },
+                {
+                  "label": "Mountain Standard Time",
+                  "value": "Mountain Standard Time"
+                },
+                {
+                  "label": "Central Standard Time",
+                  "value": "Central Standard Time"
+                },
+                {
+                  "label": "Eastern Standard Time",
+                  "value": "Eastern Standard Time"
+                },
+                {
+                  "label": "UTC",
+                  "value": "UTC"
+                }
+              ]
+            }
+          },
+          {
+            "name": "scheduleDays",
+            "type": "Microsoft.Common.DropDown",
+            "label": "Schedule Days",
+            "toolTip": "Select the days of the week to run the schedules.",
+            "multiselect": true,
+            "defaultValue": [
+              {"value": "Monday"},
+              {"value": "Tuesday"},
+              {"value": "Wednesday"},
+              {"value": "Thursday"},
+              {"value": "Friday"}
+            ],
+            "constraints": {
+              "required": true,
+              "allowedValues": [
+                {
+                  "label": "Monday",
+                  "value": "Monday"
+                },
+                {
+                  "label": "Tuesday",
+                  "value": "Tuesday"
+                },
+                {
+                  "label": "Wednesday",
+                  "value": "Wednesday"
+                },
+                {
+                  "label": "Thursday",
+                  "value": "Thursday"
+                },
+                {
+                  "label": "Friday",
+                  "value": "Friday"
+                },
+                {
+                  "label": "Saturday",
+                  "value": "Saturday"
+                },
+                {
+                  "label": "Sunday",
+                  "value": "Sunday"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "webhookSettings",
+        "label": "Webhook Settings",
+        "elements": [
+          {
+            "name": "createWebhooks",
+            "type": "Microsoft.Common.OptionsGroup",
+            "label": "Create Webhooks",
+            "defaultValue": "Yes",
+            "toolTip": "Whether to create webhooks for the runbooks.",
+            "constraints": {
+              "allowedValues": [
+                {
+                  "label": "Yes",
+                  "value": true
+                },
+                {
+                  "label": "No",
+                  "value": false
+                }
+              ],
+              "required": true
+            }
+          },
+          {
+            "name": "webhookExpiryInDays",
+            "type": "Microsoft.Common.Slider",
+            "label": "Webhook Expiry (Days)",
+            "defaultValue": 365,
+            "min": 30,
+            "max": 730,
+            "showStepMarkers": false,
+            "toolTip": "The number of days until the webhooks expire.",
+            "visible": "[equals(steps('webhookSettings').createWebhooks, true)]",
+            "constraints": {
+              "required": true
+            }
+          }
+        ]
+      },
+      {
+        "name": "tags",
+        "label": "Tags",
+        "elements": [
+          {
+            "name": "tagsByResource",
+            "type": "Microsoft.Common.TagsByResource",
+            "resources": [
+              "Microsoft.Automation/automationAccounts",
+              "Microsoft.Fabric/capacities"
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "location": "[location()]",
+      "createNewAutomationAccount": "[basics('automationAccountInfo').createNewAutomationAccount]",
+      "automationAccountName": "[if(basics('automationAccountInfo').createNewAutomationAccount, basics('automationAccountInfo').automationAccountName, last(split(basics('automationAccountInfo').existingAutomationAccount.id, '/')))]",
+      "createNewFabricCapacity": "[basics('fabricCapacityInfo').createNewFabricCapacity]",
+      "fabricCapacityName": "[if(basics('fabricCapacityInfo').createNewFabricCapacity, basics('fabricCapacityInfo').fabricCapacityName, last(split(basics('fabricCapacityInfo').existingFabricCapacity.id, '/')))]",
+      "fabricCapacitySku": "[if(equals(basics('fabricCapacityInfo').createNewFabricCapacity, true), basics('fabricCapacityInfo').fabricCapacitySku, 'F2')]",
+      "startTime": "[concat(steps('scheduleSettings').startTime, ':00')]",
+      "scaleUpTime": "[concat(steps('scheduleSettings').scaleUpTime, ':00')]",
+      "scaleUpSku": "[steps('scheduleSettings').scaleUpSku]",
+      "scaleDownTime": "[concat(steps('scheduleSettings').scaleDownTime, ':00')]",
+      "stopTime": "[concat(steps('scheduleSettings').stopTime, ':00')]",
+      "timeZone": "[steps('scheduleSettings').timeZone]",
+      "scheduleDays": "[steps('scheduleSettings').scheduleDays]",
+      "createWebhooks": "[steps('webhookSettings').createWebhooks]",
+      "webhookExpiryInDays": "[steps('webhookSettings').webhookExpiryInDays]",
+      "tagsByResource": "[steps('tags').tagsByResource]"
+    }
+  }
+} 
