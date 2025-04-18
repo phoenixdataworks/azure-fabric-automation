@@ -91,6 +91,7 @@ The solution is highly configurable:
 ## Troubleshooting
 
 Common issues and their solutions:
+Common issues and their solutions:
 
 - **Permission errors**: Check that the managed identity has proper roles assigned and allow time for RBAC propagation
 - **Module import failures**: Verify the required modules are available in your Automation account
@@ -99,6 +100,7 @@ Common issues and their solutions:
 
 ## Contributing
 
+Contributions are welcome! Please open issues and pull requests on GitHub.
 Contributions are welcome! Please open issues and pull requests on GitHub.
 
 ## License

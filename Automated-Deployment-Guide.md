@@ -1,9 +1,12 @@
 # Azure Fabric Capacity Automation - Deployment Guide
+# Azure Fabric Capacity Automation - Deployment Guide
 
+This guide outlines the steps to automate the deployment of the Azure Fabric Capacity Automation solution.
 This guide outlines the steps to automate the deployment of the Azure Fabric Capacity Automation solution.
 
 ## Prerequisites
 
+Before deploying the solution, ensure you have:
 Before deploying the solution, ensure you have:
 
 1. PowerShell 7.0 or later
@@ -44,6 +47,16 @@ You can deploy this solution using several methods:
 ### Option 1: ARM Template Deployment
 
 The simplest way to deploy the solution is through the ARM template:
+You can deploy this solution using several methods:
+
+1. Azure Resource Manager (ARM) template
+2. PowerShell script
+3. Azure DevOps pipeline
+4. GitHub Actions
+
+### Option 1: ARM Template Deployment
+
+The simplest way to deploy the solution is through the ARM template:
 
 ```powershell
 # Clone the repository if you haven't already
@@ -62,6 +75,8 @@ $fabricCapacityResourceId = "/subscriptions/your-subscription-id/resourceGroups/
 
 # Create resource group if it doesn't exist
 New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
+# Create resource group if it doesn't exist
+New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
 
 # Deploy the ARM template
 New-AzResourceGroupDeployment `
@@ -78,6 +93,7 @@ The deployment adds runbooks, schedules, and job schedules to your existing Auto
 
 ### Option 2: PowerShell Script Deployment
 
+For more control over the deployment process, use the PowerShell script:
 For more control over the deployment process, use the PowerShell script:
 
 ```powershell
@@ -104,16 +120,23 @@ For CI/CD deployments, you can use Azure DevOps:
 
 1. Import the repository into your Azure DevOps project
 2. Create a new pipeline using the provided YAML template:
+For CI/CD deployments, you can use Azure DevOps:
+
+1. Import the repository into your Azure DevOps project
+2. Create a new pipeline using the provided YAML template:
 
 ```yaml
 # azure-pipeline.yml
+# azure-pipeline.yml
 trigger:
+  - main
   - main
 
 pool:
   vmImage: 'windows-latest'
 
 steps:
+- task: AzurePowerShell@5
 - task: AzurePowerShell@5
   inputs:
     azureSubscription: 'your-service-connection'
@@ -131,9 +154,11 @@ steps:
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
 ```
+```
 
 ### Option 4: GitHub Actions
 
+You can also deploy using GitHub Actions:
 You can also deploy using GitHub Actions:
 
 1. Fork the repository
@@ -146,6 +171,7 @@ You can also deploy using GitHub Actions:
 3. The provided workflow file will handle the deployment:
 
 ```yaml
+# .github/workflows/deploy.yml
 # .github/workflows/deploy.yml
 name: Deploy Fabric Automation
 
