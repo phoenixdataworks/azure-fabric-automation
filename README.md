@@ -1,154 +1,108 @@
 # Azure Fabric Capacity Automation
 
-This project provides a solution for automating the management of Microsoft Fabric capacities through Azure Automation, with optional integration to a Power BI dashboard.
+Automate the management of Microsoft Fabric capacities in Azure, allowing you to start, stop, and scale capacities on a schedule or through manual triggers.
 
 ## Overview
 
-Microsoft Fabric is a unified analytics platform that brings together various data and analytics services. Fabric capacities are the compute resources that power these services. However, Fabric capacities can be expensive to run continuously, especially in non-production environments.
+This solution deploys Azure Automation runbooks that can control Microsoft Fabric capacities in your Azure subscription. It allows you to:
 
-This solution enables users to:
+- **Automatically start and stop** capacities on a schedule
+- **Scale capacities** up and down based on your requirements
+- **Securely authenticate** using Azure Managed Identities
+- **Create manual webhooks** for on-demand operations
+- **Verify and manage** required role assignments
 
-- Start (resume) a paused Fabric capacity
-- Stop (pause) a running Fabric capacity
-- Scale a Fabric capacity between different SKU sizes (F2, F4, F8, F16, F32, F64)
-- Check the current status of a Fabric capacity
-- Schedule automatic start, scale, and stop operations
-- Control capacities through webhooks (which can be integrated with Power BI, Power Automate, or other systems)
+## Quick Start
 
-By automating the start and stop of Fabric capacities, organizations can:
+1. Deploy the solution using the [ARM template](arm-templates/azuredeploy-combined.json)
+2. Configure schedules for automatic start/stop of capacities
+3. Create manual webhooks for on-demand control
+4. Monitor automation job status in the Azure portal
 
-- Reduce costs by running capacities only when needed
-- Scale capacities up only during intensive processing windows
-- Empower users to control capacities without requiring Azure portal access
-- Ensure capacities are available during business hours
-- Automatically shut down capacities during non-business hours
+For detailed instructions, see the [Automated Deployment Guide](Automated-Deployment-Guide.md).
 
-## Latest Updates (April 2025)
+## Key Components
 
-- **Managed Identity Authentication**: Migrated from certificate-based authentication to managed identity
-- **Improved State Handling**: Better handling of Fabric capacity states including "Active" state
-- **Enhanced Polling Logic**: Added appropriate delays for state transitions
-- **Webhook Improvements**: Fixed issues with webhook creation and improved error handling
-- **Better Documentation**: Updated deployment guides and troubleshooting information
+- **Azure Automation Account**: Hosts the runbooks and schedules
+- **System-assigned Managed Identity**: Used for secure, passwordless authentication
+- **PowerShell Runbooks**:
+  - `Start-FabricCapacity.ps1`: Starts a stopped capacity
+  - `Stop-FabricCapacity.ps1`: Stops a running capacity
+  - `Scale-FabricCapacity.ps1`: Scales a capacity to a specified SKU
+  - `Schedule-FabricCapacity.ps1`: Creates schedules for start/stop operations
+  - `Schedule-FabricCapacityPattern.ps1`: Creates complex scaling patterns
+  - `Deploy-FabricAutomation.ps1`: Used during deployment
+  - `checkRoleAssignment.ps1`: Verifies and manages required RBAC roles
 
-For more details on the migration to managed identity, see the [Managed Identity Migration Guide](./Managed-Identity-Migration-Guide.md).
+## Prerequisites
 
-## Solution Components
+- An Azure subscription
+- Contributor access to the Azure subscription or resource group
+- PowerShell 7.0 or later (for local deployment)
+- Microsoft Fabric capacity resource(s)
+- **IMPORTANT:** The ARM template deployment requires both an existing Microsoft Fabric capacity and an existing Azure Automation account
 
-The solution consists of the following components:
+## Security and Permissions
 
-1. **PowerShell Runbooks**: Scripts that interact with the Microsoft Fabric API
-2. **Azure Automation**: Hosts and executes the runbooks
-3. **Webhooks**: Allow external systems to trigger the runbooks
-4. **Schedules**: Automate capacity management on a regular schedule
+The solution uses a system-assigned managed identity with:
+- **Contributor** role on the Fabric capacity resources
+- **Automation Job Operator** role on the Automation account
 
-## Getting Started
+Role assignments are automatically verified and managed by the `checkRoleAssignment` script during deployment.
 
-### Prerequisites
+## Common Usage Scenarios
 
-Before you begin, ensure you have:
+### Daily Office Hours
 
-- An Azure subscription with permissions to create resources
-- A Microsoft Fabric capacity to manage
-- PowerShell 7.0 or later
-- Azure PowerShell modules installed
+1. Start capacity at 8:00 AM Monday-Friday
+2. Scale to appropriate size during peak hours
+3. Stop capacity at 6:00 PM Monday-Friday
 
-### Setup Instructions
+### Batch Processing
 
-1. Clone this repository to your local machine
-2. Open PowerShell and navigate to the repository directory
-3. Sign in to Azure using `Connect-AzAccount`
-4. Run the deployment script:
+1. Start capacity at 11:00 PM
+2. Scale to high-performance SKU
+3. Run intensive workloads
+4. Stop capacity when processing completes
 
-```powershell
-./Deploy-FabricAutomation.ps1 `
-  -SubscriptionId "your-subscription-id" `
-  -ResourceGroupName "your-resource-group" `
-  -AutomationAccountName "your-automation-account" `
-  -FabricCapacityName "your-fabric-capacity" `
-  -RunbookFolder (Get-Location).Path
-```
+### Development Environment
 
-For detailed deployment options, see the [Deployment Guide](./Deployment-Guide.md).
+1. Run on-demand during development hours
+2. Stop automatically after hours
+3. Remain stopped on weekends
 
-## Files in this Repository
+## Creating Manual Webhooks
 
-### PowerShell Runbooks
+To manually create webhooks for on-demand operations:
 
-- **Start-FabricCapacity.ps1**: Starts (resumes) a paused Fabric capacity
-- **Stop-FabricCapacity.ps1**: Stops (pauses) a running Fabric capacity
-- **Scale-FabricCapacity.ps1**: Scales a Fabric capacity to a specified SKU size
-- **Get-FabricCapacityStatus.ps1**: Retrieves the current status of a Fabric capacity
-- **Schedule-FabricCapacity.ps1**: Creates simple start/stop schedules
-- **Schedule-FabricCapacityPattern.ps1**: Creates a complex schedule pattern with scaling
-- **Create-FabricCapacityWebhooks.ps1**: Creates webhooks for basic operations
-- **Create-FabricScalingWebhooks.ps1**: Creates webhooks for scaling operations
+1. Navigate to your Azure Automation account
+2. Select "Runbooks" and choose the desired runbook
+3. Click "Webhooks" and "Add webhook"
+4. Provide a name and expiration date
+5. Copy and securely store the URL (it won't be shown again)
+6. Configure the webhook parameters
 
-### Deployment and Configuration
+See [PowerBI-Automation.md](PowerBI-Automation.md) for detailed information.
 
-- **Deploy-FabricAutomation.ps1**: Main deployment script that sets up the entire solution
-- **README.md**: This file
-- **Managed-Identity-Migration-Guide.md**: Guide for migrating from certificate to managed identity authentication
+## Advanced Configuration
 
-## Usage
+The solution is highly configurable:
 
-### Using Webhooks
-
-After deployment, the `Create-FabricCapacityWebhooks` and `Create-FabricScalingWebhooks` runbooks will create webhooks to trigger various operations.
-
-**How to find the Webhook URLs:**
-
-1. Go to your Azure Automation account in the Azure portal.
-2. Navigate to **Jobs** under Process Automation.
-3. Find the completed jobs named `Create-FabricCapacityWebhooks` and `Create-FabricScalingWebhooks` that were run by the deployment script.
-4. Click on each job and view its **Output** stream.
-5. The webhook URLs will be logged in the output, prefixed with `--->`.
-
-**Example Output Log Line:**
-```
----> Start Webhook URI: https://<...>.webhook.<region>.azure-automation.net/webhooks?token=<...>
-```
-
-These webhooks can be called from any system that can make HTTP POST requests:
-
-```http
-POST <Webhook-URL-From-Job-Logs>
-```
-
-**IMPORTANT**: Copy and save the webhook URLs securely as soon as you retrieve them from the job logs. They cannot be retrieved again later due to Azure security measures.
-
-### Using Scheduled Operations
-
-The solution creates a schedule with the following pattern:
-
-1. Start the capacity at specified start time (default: 6:00 AM)
-2. Scale to F64 (immediately after starting)
-3. Scale down to F2 after a specified time (default: 10 minutes later)
-4. Stop the capacity at specified stop time (default: 6:00 PM)
-
-This pattern runs on weekdays only by default, but can be configured to run every day.
+- **Multiple capacities**: Control multiple Fabric capacities
+- **Complex schedules**: Create day/time-based patterns
+- **Scaling patterns**: Define custom scaling scenarios
 
 ## Troubleshooting
 
-If you encounter issues with the solution:
+Common issues and their solutions:
 
-1. Check the Azure Automation job logs for detailed error messages
-2. Verify that the managed identity has appropriate permissions on both the Fabric capacity and the Automation account
-3. Allow sufficient time (5-10 minutes) after deployment for RBAC role assignments to propagate
-4. Refer to the [Managed Identity Migration Guide](./Managed-Identity-Migration-Guide.md) for common issues
-
-## Security Considerations
-
-This solution uses managed identity authentication, which is more secure than certificate-based authentication:
-
-- No credentials are stored or managed
-- Permissions are limited to only what's needed
-- Webhooks use random tokens that can be regenerated if needed
-- Scheduled operations use Azure Automation's built-in security
+- **Permission errors**: Check that the managed identity has proper roles assigned and allow time for RBAC propagation
+- **Module import failures**: Verify the required modules are available in your Automation account
+- **Webhook failures**: Ensure the URL is valid and parameters are correctly formatted
 
 ## Contributing
 
-Contributions to this project are welcome. Please submit a pull request or open an issue to discuss proposed changes.
+Contributions are welcome! Please open issues and pull requests on GitHub.
 
 ## License
 
