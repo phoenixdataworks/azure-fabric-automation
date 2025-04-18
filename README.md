@@ -2,22 +2,19 @@
 
 Automate the management of Microsoft Fabric capacities in Azure, allowing you to start, stop, and scale capacities on a schedule or through manual triggers.
 
+This script has been shared by the [Phoenix Dataworks](https://phoenixdaa.works). Contact us with any issues or if you need help with this or similar solutions.
+
 ## Overview
 
-This solution deploys Azure Automation runbooks that can control Microsoft Fabric capacities in your Azure subscription. It allows you to:
-
-- **Automatically start and stop** capacities on a schedule
-- **Scale capacities** up and down based on your requirements
-- **Securely authenticate** using Azure Managed Identities
-- **Create manual webhooks** for on-demand operations
-- **Verify and manage** required role assignments
+This solution deploys Azure Automation runbooks that can control Microsoft Fabric capacities in your Azure subscription. It requires existing resources and adds automation capabilities to them.
 
 ## Quick Start
 
-1. Deploy the solution using the [ARM template](arm-templates/azuredeploy-combined.json)
-2. Configure schedules for automatic start/stop of capacities
-3. Create manual webhooks for on-demand control
-4. Monitor automation job status in the Azure portal
+1. Ensure you have an existing Azure Automation account and Fabric capacity
+2. Deploy the solution using the [ARM template](arm-templates/azuredeploy.json)
+3. Configure schedules for automatic start/stop of capacities
+4. Create manual webhooks for on-demand control
+5. Monitor automation job status in the Azure portal
 
 For detailed instructions, see the [Automated Deployment Guide](Automated-Deployment-Guide.md).
 
@@ -32,15 +29,16 @@ For detailed instructions, see the [Automated Deployment Guide](Automated-Deploy
   - `Schedule-FabricCapacity.ps1`: Creates schedules for start/stop operations
   - `Schedule-FabricCapacityPattern.ps1`: Creates complex scaling patterns
   - `Deploy-FabricAutomation.ps1`: Used during deployment
-  - `checkRoleAssignment.ps1`: Verifies and manages required RBAC roles
 
 ## Prerequisites
 
 - An Azure subscription
 - Contributor access to the Azure subscription or resource group
 - PowerShell 7.0 or later (for local deployment)
-- Microsoft Fabric capacity resource(s)
-- **IMPORTANT:** The ARM template deployment requires both an existing Microsoft Fabric capacity and an existing Azure Automation account
+- **Existing Microsoft Fabric capacity resource**
+- **Existing Azure Automation account**
+
+> **IMPORTANT:** If the Automation account or Fabric capacity do not already exist, they must be created in the same resource group where you plan to deploy this solution. Resources in different resource groups may cause permission issues and prevent the automation from functioning properly.
 
 ## Security and Permissions
 
@@ -48,7 +46,7 @@ The solution uses a system-assigned managed identity with:
 - **Contributor** role on the Fabric capacity resources
 - **Automation Job Operator** role on the Automation account
 
-Role assignments are automatically verified and managed by the `checkRoleAssignment` script during deployment.
+Role assignments are automatically verified and managed by the role assignment verification process during deployment.
 
 ## Common Usage Scenarios
 
@@ -82,8 +80,6 @@ To manually create webhooks for on-demand operations:
 5. Copy and securely store the URL (it won't be shown again)
 6. Configure the webhook parameters
 
-See [PowerBI-Automation.md](PowerBI-Automation.md) for detailed information.
-
 ## Advanced Configuration
 
 The solution is highly configurable:
@@ -99,6 +95,7 @@ Common issues and their solutions:
 - **Permission errors**: Check that the managed identity has proper roles assigned and allow time for RBAC propagation
 - **Module import failures**: Verify the required modules are available in your Automation account
 - **Webhook failures**: Ensure the URL is valid and parameters are correctly formatted
+- **Resource errors**: Verify both the Automation account and Fabric capacity exist before deployment
 
 ## Contributing
 

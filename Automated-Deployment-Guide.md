@@ -10,13 +10,27 @@ Before deploying the solution, ensure you have:
 2. Azure PowerShell modules installed (`Az` and `Az.Automation`)
 3. Sufficient permissions in your Azure subscription to:
    - Create or modify resource groups
-   - Create Azure Automation accounts
-   - Create managed identities
+   - Modify Azure Automation accounts
    - Assign RBAC roles
-4. A Microsoft Fabric capacity that you want to automate
-5. **IMPORTANT:** The ARM template deployment requires:
-   - An existing Microsoft Fabric capacity (the template does not create one)
-   - An existing Azure Automation account (the template does not create one)
+4. **REQUIRED EXISTING RESOURCES**: 
+   - An existing Microsoft Fabric capacity
+   - An existing Azure Automation account
+
+> **IMPORTANT:** If you need to create the Automation account or Fabric capacity, they must be created in the same resource group where you plan to deploy this solution. Resources in different resource groups may cause permission issues and prevent the automation from functioning properly.
+
+## Azure Portal Deployment Sections
+
+When deploying through the Azure Portal, you'll encounter the following sections:
+
+1. **Basics**: Where you select your subscription and resource group (deployment name is now auto-generated)
+2. **Instance Details**: Where you configure core deployment settings including:
+   - Region for deployment
+   - Existing Automation account selection
+   - Existing Fabric capacity selection
+   - Default Scale Down Size selection
+3. **Schedule Settings**: Where you configure the times for start, scale up, scale down, and stop operations
+4. **Tags**: Where you can add optional resource tags
+5. **Review + Create**: Final validation before deployment
 
 ## Deployment Options
 
@@ -33,7 +47,7 @@ The simplest way to deploy the solution is through the ARM template:
 
 ```powershell
 # Clone the repository if you haven't already
-git clone https://github.com/your-org/azure-fabric-automation.git
+git clone https://github.com/phoenixdataworks/azure-fabric-automation.git
 cd azure-fabric-automation
 
 # Connect to your Azure account
@@ -43,8 +57,8 @@ Connect-AzAccount
 $subscriptionId = "your-subscription-id"
 $resourceGroupName = "your-resource-group"
 $location = "eastus"  # Change as needed
-$automationAccountName = "fabricautomation"
-$fabricCapacityResourceId = "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-capacity-name"
+$automationAccountName = "your-existing-automation-account"
+$fabricCapacityResourceId = "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-existing-capacity"
 
 # Create resource group if it doesn't exist
 New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
@@ -52,13 +66,15 @@ New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
 # Deploy the ARM template
 New-AzResourceGroupDeployment `
   -ResourceGroupName $resourceGroupName `
-  -TemplateFile ".\arm-templates\azuredeploy-combined.json" `
+  -TemplateFile ".\arm-templates\azuredeploy.json" `
   -automationAccountName $automationAccountName `
   -location $location `
-  -fabricCapacityResourceId $fabricCapacityResourceId
+  -fabricCapacityResourceId $fabricCapacityResourceId `
+  -createNewAutomationAccount $false `
+  -createNewFabricCapacity $false
 ```
 
-After deployment, the `checkRoleAssignment` script will verify and manage the role assignments necessary for the solution to operate. The deployment template has been updated to include a dependency on this script, ensuring proper role assignment sequence. You'll need to wait 5-10 minutes for the RBAC permissions to propagate before using the runbooks.
+The deployment adds runbooks, schedules, and job schedules to your existing Automation account to manage your existing Fabric capacity. The `checkRoleAssignment` script will verify and manage the role assignments necessary for the solution to operate.
 
 ### Option 2: PowerShell Script Deployment
 
@@ -66,7 +82,7 @@ For more control over the deployment process, use the PowerShell script:
 
 ```powershell
 # Clone the repository if you haven't already
-git clone https://github.com/your-org/azure-fabric-automation.git
+git clone https://github.com/phoenixdataworks/azure-fabric-automation.git
 cd azure-fabric-automation
 
 # Connect to your Azure account
@@ -77,10 +93,9 @@ Connect-AzAccount
   -SubscriptionId "your-subscription-id" `
   -ResourceGroupName "your-resource-group" `
   -Location "eastus" `  # Change as needed
-  -AutomationAccountName "fabricautomation" `
-  -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-capacity-name" `
-  -CreateScheduledOperation $true `
-  -ManagedIdentityClientId "client-id-of-existing-identity"  # Optional, creates new identity if not specified
+  -AutomationAccountName "your-existing-automation-account" `
+  -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-existing-capacity" `
+  -CreateScheduledOperation $true
 ```
 
 ### Option 3: Azure DevOps Pipeline
@@ -108,9 +123,11 @@ steps:
       -SubscriptionId "your-subscription-id"
       -ResourceGroupName "your-resource-group"
       -Location "eastus"
-      -AutomationAccountName "fabricautomation"
-      -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-capacity-name"
+      -AutomationAccountName "your-existing-automation-account"
+      -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-existing-capacity"
       -CreateScheduledOperation $true
+      -CreateNewAutomationAccount $false
+      -CreateNewFabricCapacity $false
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
 ```
@@ -124,7 +141,8 @@ You can also deploy using GitHub Actions:
    - `AZURE_CREDENTIALS`: JSON output from `az ad sp create-for-rbac`
    - `SUBSCRIPTION_ID`: Your Azure subscription ID
    - `RESOURCE_GROUP`: Target resource group name
-   - `FABRIC_CAPACITY_ID`: Resource ID of your Fabric capacity
+   - `FABRIC_CAPACITY_ID`: Resource ID of your existing Fabric capacity
+   - `AUTOMATION_ACCOUNT_NAME`: Name of your existing Automation account
 3. The provided workflow file will handle the deployment:
 
 ```yaml
@@ -153,9 +171,11 @@ jobs:
           -SubscriptionId "${{ secrets.SUBSCRIPTION_ID }}" `
           -ResourceGroupName "${{ secrets.RESOURCE_GROUP }}" `
           -Location "eastus" `
-          -AutomationAccountName "fabricautomation" `
+          -AutomationAccountName "${{ secrets.AUTOMATION_ACCOUNT_NAME }}" `
           -FabricCapacityResourceId "${{ secrets.FABRIC_CAPACITY_ID }}" `
-          -CreateScheduledOperation $true
+          -CreateScheduledOperation $true `
+          -CreateNewAutomationAccount $false `
+          -CreateNewFabricCapacity $false
 ```
 
 ## Post-Deployment Steps
@@ -172,7 +192,7 @@ After deploying the solution:
 
 ## Role Assignment
 
-The solution now includes a `checkRoleAssignment` script that will:
+The solution includes a `checkRoleAssignment` script that will:
 
 1. Verify if the necessary role assignments exist for the managed identity
 2. Add any missing role assignments required for the automation to function
@@ -180,6 +200,16 @@ The solution now includes a `checkRoleAssignment` script that will:
 4. Report on the role assignment status to help with troubleshooting
 
 This improvement ensures that the deployment automatically handles the permissions required for the solution to operate correctly.
+
+The `checkRoleAssignment` script is a deployment script resource in the ARM template that runs during deployment to:
+- Connect to Azure using the managed identity
+- Check if the specified managed identity exists in the resource group
+- Retrieve the principal ID of the managed identity
+- Verify if the identity already has the Contributor role assignment
+- Output the status of the role assignment check
+- Store the result as an output variable used by the template to control subsequent deployment steps
+
+This validation step ensures that role assignments are properly configured before the rest of the deployment proceeds, preventing permission-related failures during automated operations.
 
 ## Advanced Configuration
 
@@ -192,8 +222,8 @@ You can modify the schedules created by the deployment:
 .\Schedule-FabricCapacity.ps1 `
   -SubscriptionId "your-subscription-id" `
   -ResourceGroupName "your-resource-group" `
-  -AutomationAccountName "fabricautomation" `
-  -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-capacity-name" `
+  -AutomationAccountName "your-existing-automation-account" `
+  -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-existing-capacity" `
   -StartTime "08:00" `  # 8:00 AM
   -StopTime "20:00"     # 8:00 PM
 ```
@@ -207,8 +237,8 @@ You can set up a custom scaling pattern:
 .\Schedule-FabricCapacityPattern.ps1 `
   -SubscriptionId "your-subscription-id" `
   -ResourceGroupName "your-resource-group" `
-  -AutomationAccountName "fabricautomation" `
-  -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-capacity-name" `
+  -AutomationAccountName "your-existing-automation-account" `
+  -FabricCapacityResourceId "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-existing-capacity" `
   -StartTime "06:00" `                # 6:00 AM
   -HighScaleSkuName "F64" `           # Scale to F64
   -HighScaleDurationMinutes 60 `      # Keep at F64 for 60 minutes
@@ -224,8 +254,9 @@ This solution is also available through the Azure Marketplace for simplified dep
 1. Search for "Fabric Capacity Automation" in the Azure Marketplace
 2. Click "Create" or "Get It Now"
 3. Follow the guided deployment experience
-4. Configure the parameters as needed
-5. Review and create the deployment
+4. Select your existing Automation account and Fabric capacity
+5. Configure the schedule parameters
+6. Review and create the deployment
 
 ## Troubleshooting
 
@@ -237,5 +268,6 @@ If you encounter issues during deployment:
 4. Allow sufficient time for RBAC permissions to propagate (5-10 minutes)
 5. Verify that the Fabric capacity resource ID is correct
 6. Review the output from the `checkRoleAssignment` script to verify role assignment status
+7. Ensure that both the Automation account and Fabric capacity exist before deployment
 
 For additional assistance, please open an issue in the GitHub repository. 

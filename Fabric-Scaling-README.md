@@ -122,9 +122,3 @@ After setting up the scaling and scheduling components:
 1. Monitor the cost and performance of your Fabric capacity.
 2. Adjust the schedule times and SKUs based on your actual usage patterns.
 3. Consider creating additional schedule patterns for different scenarios (e.g., month-end processing).
-
-## Related Documents
-
-- [Solution Architecture](./Solution-Architecture.md)
-- [Setup Guide](./Setup-Guide.md)
-- [Power BI Dashboard Setup](./PowerBI-Dashboard-Setup.md) 
