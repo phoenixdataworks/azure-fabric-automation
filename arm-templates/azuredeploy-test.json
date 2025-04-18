@@ -411,6 +411,62 @@
       }
     },
     {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "schedulesDeployment",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Start-FabricCapacity')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Stop-FabricCapacity')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Scale-FabricCapacity')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Get-FabricCapacityStatus')]",
+        "[resourceId('Microsoft.Automation/automationAccounts/runbooks', parameters('automationAccountName'), 'Schedule-FabricCapacity')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "relativePath": "nested/schedules-deployment.json"
+        },
+        "parameters": {
+          "automationAccountName": {
+            "value": "[parameters('automationAccountName')]"
+          },
+          "fabricCapacityName": {
+            "value": "[parameters('fabricCapacityName')]"
+          },
+          "fabricCapacityId": {
+            "value": "[variables('fabricCapacityId')]"
+          },
+          "startTime": {
+            "value": "[parameters('startTime')]"
+          },
+          "scaleUpTime": {
+            "value": "[parameters('scaleUpTime')]"
+          },
+          "scaleUpSku": {
+            "value": "[parameters('scaleUpSku')]"
+          },
+          "scaleDownTime": {
+            "value": "[parameters('scaleDownTime')]"
+          },
+          "stopTime": {
+            "value": "[parameters('stopTime')]"
+          },
+          "timeZone": {
+            "value": "[parameters('timeZone')]"
+          },
+          "weekDaysOnly": {
+            "value": "[parameters('weekDaysOnly')]"
+          },
+          "scheduleDays": {
+            "value": "[parameters('scheduleDays')]"
+          },
+          "fabricCapacitySku": {
+            "value": "[parameters('defaultSku')]"
+          }
+        }
+      }
+    },
+    {
       "type": "Microsoft.Automation/automationAccounts/schedules",
       "apiVersion": "2022-08-08",
       "name": "[concat(parameters('automationAccountName'), '/Schedule-FabricCapacityPattern-Setup')]",
