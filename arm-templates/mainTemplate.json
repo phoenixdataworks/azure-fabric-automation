@@ -24,7 +24,7 @@
     },
     "createNewFabricCapacity": {
       "type": "bool",
-      "defaultValue": false,
+      "defaultValue": true,
       "metadata": {
         "description": "Whether to create a new Fabric capacity or use an existing one"
       }
@@ -34,6 +34,13 @@
       "minLength": 1,
       "metadata": {
         "description": "Name of the Microsoft Fabric capacity to manage"
+      }
+    },
+    "fabricCapacityId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Resource ID of the Microsoft Fabric capacity to manage"
       }
     },
     "fabricCapacitySku": {
@@ -173,7 +180,7 @@
   },
   "variables": {
     "automationAccountId": "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]",
-    "fabricCapacityId": "[resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName'))]",
+    "fabricCapacityId": "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), if(empty(parameters('fabricCapacityId')), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), parameters('fabricCapacityId')))]",
     "modules": [
       {
         "name": "Az.Accounts",

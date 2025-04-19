@@ -44,19 +44,35 @@ You can deploy this solution using several methods:
 3. Azure DevOps pipeline
 4. GitHub Actions
 
-### Option 1: ARM Template Deployment
+> **IMPORTANT: Deployment Mode** 
+> 
+> This solution should be deployed using **Incremental** deployment mode to prevent accidental deletion of any existing resources in your resource group. The following deployment options all use Incremental mode by default.
 
-The simplest way to deploy the solution is through the ARM template:
-You can deploy this solution using several methods:
+### Option 1: ARM Template Deployment Using the Provided Script
 
-1. Azure Resource Manager (ARM) template
-2. PowerShell script
-3. Azure DevOps pipeline
-4. GitHub Actions
+The simplest way to deploy the solution is through the provided deployment script:
 
-### Option 1: ARM Template Deployment
+```powershell
+# Clone the repository if you haven't already
+git clone https://github.com/phoenixdataworks/azure-fabric-automation.git
+cd azure-fabric-automation
 
-The simplest way to deploy the solution is through the ARM template:
+# Run the deployment script with Incremental mode (this is the default)
+.\arm-templates\azuredeploy.ps1 `
+  -SubscriptionId "your-subscription-id" `
+  -ResourceGroupName "your-resource-group" `
+  -Location "eastus" `
+  -TemplateParameters @{
+      "automationAccountName" = "your-existing-automation-account"
+      "fabricCapacityName" = "your-existing-fabric-capacity"
+      "createNewAutomationAccount" = $false
+      "createNewFabricCapacity" = $false
+  }
+```
+
+### Option 2: Manual ARM Template Deployment
+
+Alternatively, you can manually deploy the ARM template with the Azure PowerShell module:
 
 ```powershell
 # Clone the repository if you haven't already
@@ -71,27 +87,27 @@ $subscriptionId = "your-subscription-id"
 $resourceGroupName = "your-resource-group"
 $location = "eastus"  # Change as needed
 $automationAccountName = "your-existing-automation-account"
-$fabricCapacityResourceId = "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.Fabric/capacities/your-existing-capacity"
+$fabricCapacityName = "your-existing-fabric-capacity"
+
+# Select the subscription
+Set-AzContext -SubscriptionId $subscriptionId
 
 # Create resource group if it doesn't exist
 New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
-# Create resource group if it doesn't exist
-New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
 
-# Deploy the ARM template
+# Deploy the ARM template with INCREMENTAL mode
 New-AzResourceGroupDeployment `
   -ResourceGroupName $resourceGroupName `
-  -TemplateFile ".\arm-templates\azuredeploy.json" `
+  -TemplateFile ".\arm-templates\mainTemplate.json" `
+  -Mode Incremental `
   -automationAccountName $automationAccountName `
+  -fabricCapacityName $fabricCapacityName `
   -location $location `
-  -fabricCapacityResourceId $fabricCapacityResourceId `
   -createNewAutomationAccount $false `
   -createNewFabricCapacity $false
 ```
 
-The deployment adds runbooks, schedules, and job schedules to your existing Automation account to manage your existing Fabric capacity. The `checkRoleAssignment` script will verify and manage the role assignments necessary for the solution to operate.
-
-### Option 2: PowerShell Script Deployment
+### Option 3: PowerShell Script Deployment
 
 For more control over the deployment process, use the PowerShell script:
 For more control over the deployment process, use the PowerShell script:
@@ -114,7 +130,7 @@ Connect-AzAccount
   -CreateScheduledOperation $true
 ```
 
-### Option 3: Azure DevOps Pipeline
+### Option 4: Azure DevOps Pipeline
 
 For CI/CD deployments, you can use Azure DevOps:
 
@@ -154,9 +170,8 @@ steps:
     azurePowerShellVersion: 'LatestVersion'
     pwsh: true
 ```
-```
 
-### Option 4: GitHub Actions
+### Option 5: GitHub Actions
 
 You can also deploy using GitHub Actions:
 You can also deploy using GitHub Actions:
