@@ -33,7 +33,7 @@
       "type": "string",
       "minLength": 1,
       "metadata": {
-        "description": "Name of the Microsoft Fabric capacity to manage"
+        "description": "Name of the Microsoft Fabric capacity to manage. Must be unique across all of Azure in this region."
       }
     },
     "fabricCapacityId": {
@@ -118,7 +118,7 @@
     },
     "timeZone": {
       "type": "string",
-      "defaultValue": "Pacific Standard Time",
+      "defaultValue": "United States - Pacific Time",
       "metadata": {
         "description": "Time zone for the schedules"
       }
@@ -135,13 +135,6 @@
       "defaultValue": {},
       "metadata": {
         "description": "Tags for resources"
-      }
-    },
-    "scheduleStartTime": {
-      "type": "string",
-      "defaultValue": "[utcNow('yyyy-MM-ddTHH:mm:ssZ')]",
-      "metadata": {
-        "description": "Start time for schedules (at least 5 minutes in the future)"
       }
     },
     "defaultSku": {
@@ -165,9 +158,9 @@
     },
     "baseDate": {
       "type": "string",
-      "defaultValue": "[utcNow('yyyy-MM-dd')]",
+      "defaultValue": "[dateTimeAdd(utcNow('yyyy-MM-dd'), 'P1D')]",
       "metadata": {
-        "description": "Base date to use for scheduling (default is today's date in UTC)"
+        "description": "Base date to use for scheduling (default is tomorrow's date in UTC)"
       }
     },
     "deploymentSuffix": {
@@ -176,11 +169,26 @@
       "metadata": {
         "description": "A unique suffix for this deployment to avoid conflicts"
       }
+    },
+    "fabricCapacityAdministrator": {
+      "type": "string",
+      "metadata": {
+        "description": "Email address or User Principal Name (UPN) of user or service principal to be assigned as Fabric capacity administrator (e.g., user@contoso.com)."
+      }
+    },
+    "appendUniqueSuffix": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Append a unique suffix to the Fabric capacity name to help ensure uniqueness"
+      }
     }
   },
   "variables": {
     "automationAccountId": "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]",
-    "fabricCapacityId": "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), if(empty(parameters('fabricCapacityId')), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), parameters('fabricCapacityId')))]",
+    "uniqueSuffix": "[take(uniqueString(concat(subscription().subscriptionId, resourceGroup().id)), 6)]",
+    "fabricCapacityNameUnique": "[if(parameters('appendUniqueSuffix'), concat(parameters('fabricCapacityName'), variables('uniqueSuffix')), parameters('fabricCapacityName'))]",
+    "fabricCapacityId": "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', variables('fabricCapacityNameUnique')), if(empty(parameters('fabricCapacityId')), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), parameters('fabricCapacityId')))]",
     "modules": [
       {
         "name": "Az.Accounts",
@@ -248,9 +256,29 @@
         "name": "Get-FabricCapacityStatus",
         "uri": "https://raw.githubusercontent.com/phoenixdataworks/azure-fabric-automation/main/azure-runbooks/Get-FabricCapacityStatus.ps1"
       }
-    ]
+    ],
+    "scheduleDateTomorrow": "[dateTimeAdd(parameters('baseDate'), 'P1D')]"
   },
   "resources": [
+    {
+      "type": "Microsoft.Fabric/capacities",
+      "apiVersion": "2023-11-01",
+      "name": "[variables('fabricCapacityNameUnique')]",
+      "condition": "[parameters('createNewFabricCapacity')]",
+      "location": "[parameters('location')]",
+      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Fabric/capacities'), parameters('tagsByResource')['Microsoft.Fabric/capacities'], json('{}'))]",
+      "sku": {
+        "name": "[parameters('fabricCapacitySku')]",
+        "tier": "Fabric"
+      },
+      "properties": {
+        "administration": {
+          "members": [
+            "[parameters('fabricCapacityAdministrator')]"
+          ]
+        }
+      }
+    },
     {
       "type": "Microsoft.Automation/automationAccounts",
       "apiVersion": "2022-08-08",
@@ -261,6 +289,9 @@
       "identity": {
         "type": "SystemAssigned"
       },
+      "dependsOn": [
+        "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', variables('fabricCapacityNameUnique')), 'no-dependency-needed')]"
+      ],
       "properties": {
         "sku": {
           "name": "Basic"
@@ -283,27 +314,6 @@
       "properties": {
         "contentLink": {
           "uri": "[variables('modules')[copyIndex()].uri]"
-        }
-      }
-    },
-    {
-      "type": "Microsoft.Fabric/capacities",
-      "apiVersion": "2023-11-01",
-      "name": "[parameters('fabricCapacityName')]",
-      "condition": "[parameters('createNewFabricCapacity')]",
-      "location": "[parameters('location')]",
-      "tags": "[if(contains(parameters('tagsByResource'), 'Microsoft.Fabric/capacities'), parameters('tagsByResource')['Microsoft.Fabric/capacities'], json('{}'))]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]"
-      ],
-      "sku": {
-        "name": "[parameters('fabricCapacitySku')]"
-      },
-      "properties": {
-        "administration": {
-          "members": [
-            "[if(parameters('createNewAutomationAccount'), reference(resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName')), '2022-08-08', 'Full').identity.principalId, '')]"
-          ]
         }
       }
     },
@@ -346,7 +356,8 @@
       ],
       "properties": {
         "description": "[variables('schedules')[copyIndex()].description]",
-        "startTime": "[concat(parameters('baseDate'), 'T', variables('schedules')[copyIndex()].startTime, 'Z')]",
+        "startTime": "[concat(variables('scheduleDateTomorrow'), 'T', variables('schedules')[copyIndex()].startTime)]",
+        "expiryTime": "9999-12-31T23:59:59+00:00",
         "frequency": "Day",
         "interval": 1,
         "timeZone": "[parameters('timeZone')]",
@@ -385,6 +396,10 @@
     "fabricCapacityId": {
       "type": "string",
       "value": "[variables('fabricCapacityId')]"
+    },
+    "fabricCapacityName": {
+      "type": "string",
+      "value": "[variables('fabricCapacityNameUnique')]"
     }
   }
 } 
