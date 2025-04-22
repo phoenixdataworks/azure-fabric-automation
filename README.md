@@ -26,19 +26,32 @@ For detailed instructions, see the [Automated Deployment Guide](Automated-Deploy
   - `Start-FabricCapacity.ps1`: Starts a stopped capacity
   - `Stop-FabricCapacity.ps1`: Stops a running capacity
   - `Scale-FabricCapacity.ps1`: Scales a capacity to a specified SKU
-  - `Schedule-FabricCapacity.ps1`: Creates schedules for start/stop operations
-  - `Schedule-FabricCapacityPattern.ps1`: Creates complex scaling patterns
-  - `Deploy-FabricAutomation.ps1`: Used during deployment
+  - `Get-FabricCapacityStatus.ps1`: Gets the current status of a capacity
 
 ## Prerequisites
 
 - An Azure subscription
 - Contributor access to the Azure subscription or resource group
 - PowerShell 7.0 or later (for local deployment)
-- **Existing Microsoft Fabric capacity resource**
-- **Existing Azure Automation account**
 
-> **IMPORTANT:** If the Automation account or Fabric capacity do not already exist, they must be created in the same resource group where you plan to deploy this solution. Resources in different resource groups may cause permission issues and prevent the automation from functioning properly.
+## Deployment Options
+
+### Azure Portal / Marketplace
+
+1. The solution can be deployed via Azure Portal using the provided ARM templates
+2. Configure the following settings during deployment:
+   - **Automation Account Name**: Create new or use existing
+   - **Fabric Capacity Name**: Create new or use existing
+   - **Fabric Capacity Administrator**: Enter email/UPN of user for capacity admin
+   - **Schedule Times**: Set times for capacity start, scale up, scale down, and stop
+   - **Time Zone**: Select time zone for schedules (e.g., "United States - Pacific Time")
+   - **Schedule Days**: Select days of the week for automated operations
+
+### ARM Template
+
+1. Use the ARM templates in the `arm-templates` directory:
+   - `mainTemplate.json`: Main ARM template
+   - `createUiDefinition.json`: UI definition for Azure Portal experience
 
 ## Security and Permissions
 

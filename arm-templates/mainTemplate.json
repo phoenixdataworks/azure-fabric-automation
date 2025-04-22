@@ -118,7 +118,7 @@
     },
     "timeZone": {
       "type": "string",
-      "defaultValue": "United States - Pacific Time",
+      "defaultValue": "America/Los_Angeles",
       "metadata": {
         "description": "Time zone for the schedules"
       }
@@ -189,6 +189,20 @@
     "uniqueSuffix": "[take(uniqueString(concat(subscription().subscriptionId, resourceGroup().id)), 6)]",
     "fabricCapacityNameUnique": "[if(parameters('appendUniqueSuffix'), concat(parameters('fabricCapacityName'), variables('uniqueSuffix')), parameters('fabricCapacityName'))]",
     "fabricCapacityId": "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', variables('fabricCapacityNameUnique')), if(empty(parameters('fabricCapacityId')), resourceId('Microsoft.Fabric/capacities', parameters('fabricCapacityName')), parameters('fabricCapacityId')))]",
+    "timezoneOffsets": {
+      "America/Los_Angeles": "-07:00",
+      "America/Denver": "-06:00",
+      "America/Chicago": "-05:00", 
+      "America/New_York": "-04:00",
+      "UTC": "Z",
+      "Europe/London": "+01:00",
+      "Europe/Paris": "+02:00",
+      "Asia/Kolkata": "+05:30",
+      "Asia/Tokyo": "+09:00",
+      "Australia/Sydney": "+10:00"
+    },
+    "selectedTimezoneOffset": "[if(contains(variables('timezoneOffsets'), parameters('timeZone')), variables('timezoneOffsets')[parameters('timeZone')], 'Z')]",
+    "expiryTimeWithOffset": "9999-12-31T23:59:59Z",
     "modules": [
       {
         "name": "Az.Accounts",
@@ -203,7 +217,7 @@
       {
         "name": "[concat('Start-', parameters('fabricCapacityName'))]",
         "description": "[concat('Schedule to start the ', parameters('fabricCapacityName'), ' Fabric capacity at ', parameters('startTime'))]",
-        "startTime": "[parameters('startTime')]",
+        "startTime": "[concat(substring(parameters('baseDate'), 0, 10), 'T', parameters('startTime'), variables('selectedTimezoneOffset'))]",
         "runbookName": "Start-FabricCapacity",
         "parameters": {
           "CapacityId": "[variables('fabricCapacityId')]"
@@ -212,7 +226,7 @@
       {
         "name": "[concat('ScaleUp-', parameters('fabricCapacityName'), '-', parameters('scaleUpSku'))]",
         "description": "[concat('Schedule to scale the ', parameters('fabricCapacityName'), ' Fabric capacity to ', parameters('scaleUpSku'), ' at ', parameters('scaleUpTime'))]",
-        "startTime": "[parameters('scaleUpTime')]",
+        "startTime": "[concat(substring(parameters('baseDate'), 0, 10), 'T', parameters('scaleUpTime'), variables('selectedTimezoneOffset'))]",
         "runbookName": "Scale-FabricCapacity",
         "parameters": {
           "CapacityId": "[variables('fabricCapacityId')]",
@@ -222,7 +236,7 @@
       {
         "name": "[concat('ScaleDown-', parameters('fabricCapacityName'), '-', parameters('defaultSku'))]",
         "description": "[concat('Schedule to scale the ', parameters('fabricCapacityName'), ' Fabric capacity to ', parameters('defaultSku'), ' at ', parameters('scaleDownTime'))]",
-        "startTime": "[parameters('scaleDownTime')]",
+        "startTime": "[concat(substring(parameters('baseDate'), 0, 10), 'T', parameters('scaleDownTime'), variables('selectedTimezoneOffset'))]",
         "runbookName": "Scale-FabricCapacity",
         "parameters": {
           "CapacityId": "[variables('fabricCapacityId')]",
@@ -232,7 +246,7 @@
       {
         "name": "[concat('Stop-', parameters('fabricCapacityName'))]",
         "description": "[concat('Schedule to stop the ', parameters('fabricCapacityName'), ' Fabric capacity at ', parameters('stopTime'))]",
-        "startTime": "[parameters('stopTime')]",
+        "startTime": "[concat(substring(parameters('baseDate'), 0, 10), 'T', parameters('stopTime'), variables('selectedTimezoneOffset'))]",
         "runbookName": "Stop-FabricCapacity",
         "parameters": {
           "CapacityId": "[variables('fabricCapacityId')]"
@@ -343,7 +357,7 @@
     },
     {
       "type": "Microsoft.Automation/automationAccounts/schedules",
-      "apiVersion": "2022-08-08",
+      "apiVersion": "2023-11-01",
       "name": "[concat(parameters('automationAccountName'), '/', variables('schedules')[copyIndex()].name)]",
       "copy": {
         "name": "schedulesCopy",
@@ -356,9 +370,9 @@
       ],
       "properties": {
         "description": "[variables('schedules')[copyIndex()].description]",
-        "startTime": "[concat(variables('scheduleDateTomorrow'), 'T', variables('schedules')[copyIndex()].startTime)]",
-        "expiryTime": "9999-12-31T23:59:59+00:00",
-        "frequency": "Day",
+        "startTime": "[variables('schedules')[copyIndex()].startTime]",
+        "expiryTime": "[variables('expiryTimeWithOffset')]",
+        "frequency": "Week",
         "interval": 1,
         "timeZone": "[parameters('timeZone')]",
         "advancedSchedule": {

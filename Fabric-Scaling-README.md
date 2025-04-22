@@ -69,18 +69,30 @@ Optional parameters:
 
 ## Example: Daily Optimization Pattern
 
-The default configuration in `Schedule-FabricCapacityPattern.ps1` implements the following pattern:
+The default configuration in the deployment template implements the following pattern:
 
-1. **6:00 AM Pacific Time**: Start the Fabric capacity
-2. **6:00 AM Pacific Time**: Scale the capacity to F64 (for running intensive jobs)
-3. **6:10 AM Pacific Time**: Scale the capacity down to F2 (cost-saving mode)
-4. **6:00 PM Pacific Time**: Stop (pause) the capacity
+1. **6:00 AM**: Start the Fabric capacity
+2. **6:05 AM**: Scale the capacity to F64 (for running intensive jobs)
+3. **5:45 PM**: Scale the capacity down to F2 (cost-saving mode)
+4. **6:00 PM**: Stop (pause) the capacity
 
 This pattern ensures that:
 - Your capacity is only running during business hours
-- You only pay for the expensive F64 SKU for 10 minutes each day
-- You use the more economical F2 SKU for general work throughout the day
+- You have high performance capacity during the workday
 - Your capacity is completely paused (no charges) during non-business hours
+
+All times are based on the time zone you select during deployment (default: "United States - Pacific Time").
+
+## Time Zone Support
+
+The solution supports various time zones, including:
+- United States - Pacific Time
+- United States - Mountain Time
+- United States - Central Time
+- United States - Eastern Time
+- Coordinated Universal Time
+
+Schedules are created to run in your selected time zone, ensuring operations occur at locally appropriate times.
 
 ## Integration with Power BI Dashboard
 

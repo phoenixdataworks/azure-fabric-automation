@@ -28,12 +28,31 @@ When deploying through the Azure Portal, you'll encounter the following sections
 1. **Basics**: Where you select your subscription and resource group (deployment name is now auto-generated)
 2. **Instance Details**: Where you configure core deployment settings including:
    - Region for deployment
-   - Existing Automation account selection
-   - Existing Fabric capacity selection
-   - Default Scale Down Size selection
-3. **Schedule Settings**: Where you configure the times for start, scale up, scale down, and stop operations
+   - Automation account settings (create new or use existing)
+   - Fabric capacity settings (create new or use existing)
+   - Fabric capacity administrator (email/UPN)
+   - Default capacity SKU
+3. **Schedule Settings**: Where you configure the times for start, scale up, scale down, and stop operations:
+   - Start Time (HH:MM): When to start the capacity (default: 06:00)
+   - Scale Up Time (HH:MM): When to scale up the capacity (default: 06:05)
+   - Scale Up Size: SKU to scale up to (default: F64)
+   - Scale Down Time (HH:MM): When to scale down the capacity (default: 17:45)
+   - Stop Time (HH:MM): When to stop the capacity (default: 18:00)
+   - Time Zone: Select the time zone for all schedules (e.g., "United States - Pacific Time")
+   - Schedule Days: Select which days of the week to run the schedules
 4. **Tags**: Where you can add optional resource tags
 5. **Review + Create**: Final validation before deployment
+
+## Schedule Configuration
+
+The deployment creates four daily schedules for the Fabric capacity, which will start the day after deployment:
+
+1. **Start Schedule**: Starts the capacity at the specified Start Time
+2. **Scale Up Schedule**: Scales the capacity to the specified SKU at the Scale Up Time
+3. **Scale Down Schedule**: Scales the capacity back to the default SKU at the Scale Down Time
+4. **Stop Schedule**: Stops the capacity at the specified Stop Time
+
+These schedules run only on the days specified in the Schedule Days parameter and in the time zone selected during deployment.
 
 ## Deployment Options
 
