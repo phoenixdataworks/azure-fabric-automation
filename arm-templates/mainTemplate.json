@@ -400,6 +400,21 @@
         },
         "parameters": "[variables('schedules')[copyIndex()].parameters]"
       }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName')), variables('fabricCapacityId'), 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+      "condition": "[parameters('createNewAutomationAccount')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName'))]",
+        "[if(parameters('createNewFabricCapacity'), resourceId('Microsoft.Fabric/capacities', variables('fabricCapacityNameUnique')), 'no-dependency-needed')]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Authorization/roleDefinitions/', 'b24988ac-6180-42a0-ab88-20f7382dd24c')]",
+        "principalId": "[reference(resourceId('Microsoft.Automation/automationAccounts', parameters('automationAccountName')), '2022-08-08', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
     }
   ],
   "outputs": {

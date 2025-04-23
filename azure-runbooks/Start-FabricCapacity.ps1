@@ -234,7 +234,18 @@ try {
     
     # Get an access token
     $azContext = Connect-AzAccount -Identity
-    $script:accessToken = (Get-AzAccessToken -ResourceUrl "https://management.azure.com/").Token
+    
+    # Handle both current string token and future SecureString token formats
+    $tokenResponse = Get-AzAccessToken -ResourceUrl "https://management.azure.com/"
+    if ($tokenResponse.Token -is [System.Security.SecureString]) {
+        # Convert SecureString to plain text (for newer Az module versions)
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($tokenResponse.Token)
+        $script:accessToken = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+    } else {
+        # Use as-is for current Az module versions
+        $script:accessToken = $tokenResponse.Token
+    }
     
     # Get the current status
     $capacity = Get-CapacityStatus -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName

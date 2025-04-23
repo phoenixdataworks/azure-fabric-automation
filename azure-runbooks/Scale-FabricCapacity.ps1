@@ -183,10 +183,14 @@ function Scale-Capacity {
         [object]$CurrentCapacity
     )
     
+    Write-Output "DEBUG: Entering Scale-Capacity function"
+    Write-Log "Entering Scale-Capacity function" -Level "Info"
+    
     try {
         # Create the update payload
         $apiVersion = "2023-11-01"
         $uri = "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Fabric/capacities/$CapacityName`?api-version=$apiVersion"
+        Write-Log "URI: $uri" -Level "Info"
         
         # Create a copy of the current capacity properties but update the SKU
         $updatePayload = @{
@@ -199,16 +203,46 @@ function Scale-Capacity {
         
         $jsonPayload = $updatePayload | ConvertTo-Json -Depth 10
         
+        Write-Output "DEBUG: Payload ready and about to call API"
+        Write-Log "Prepared payload for scaling: $($jsonPayload.Substring(0, [Math]::Min(500, $jsonPayload.Length)))" -Level "Info"
+        Write-Log "About to send scale request to API: $uri" -Level "Info"
+        
         # Update the capacity
+        Write-Output "DEBUG: Executing Invoke-RestMethod..."
+        Write-Log "Executing Invoke-RestMethod..." -Level "Info"
         $response = Invoke-RestMethod -Uri $uri -Method Put -Headers @{
             "Authorization" = "Bearer $script:accessToken"
             "Content-Type" = "application/json"
-        } -Body $jsonPayload
+        } -Body $jsonPayload -Verbose
         
+        Write-Output "DEBUG: API call completed successfully"
+        Write-Log "Successfully received response from scaling API" -Level "Info"
         return $response
     }
     catch {
-        Write-Log "Failed to scale capacity: $_" -Level "Error"
+        Write-Output "DEBUG: Exception caught in Scale-Capacity: $($_.Exception.Message)"
+        Write-Log "Failed to scale capacity with detailed error:" -Level "Error"
+        
+        # Extract detailed error information
+        if ($_.Exception.Response) {
+            Write-Log "Status code: $($_.Exception.Response.StatusCode.value__)" -Level "Error"
+            
+            try {
+                # Try to get response body for more details
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $reader.BaseStream.Position = 0
+                $reader.DiscardBufferedData()
+                $responseBody = $reader.ReadToEnd()
+                Write-Log "Response body: $responseBody" -Level "Error"
+                Write-Output "DEBUG: Response body: $responseBody"
+            }
+            catch {
+                Write-Log "Could not read response body: $_" -Level "Error"
+            }
+        }
+        
+        Write-Log "Exception message: $($_.Exception.Message)" -Level "Error"
+        Write-Log "Stack trace: $($_.ScriptStackTrace)" -Level "Error"
         throw
     }
 }
@@ -349,7 +383,16 @@ try {
     $azContext = Connect-AzAccount -Identity
     
     # Get an access token using managed identity
-    $script:accessToken = (Get-AzAccessToken -ResourceUrl "https://management.azure.com/").Token
+    $tokenResponse = Get-AzAccessToken -ResourceUrl "https://management.azure.com/"
+    if ($tokenResponse.Token -is [System.Security.SecureString]) {
+        # Convert SecureString to plain text (for newer Az module versions)
+        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($tokenResponse.Token)
+        $script:accessToken = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
+    } else {
+        # Use as-is for current Az module versions
+        $script:accessToken = $tokenResponse.Token
+    }
     
     # Get the current status
     $capacity = Get-CapacityStatus -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName
@@ -411,8 +454,23 @@ try {
     }
     
     # Scale the capacity
-    Write-Log "Scaling capacity from $currentSku to $TargetSku..."
-    $scaleResponse = Scale-Capacity -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName -TargetSku $TargetSku -CurrentCapacity $capacity
+    Write-Log "Scaling capacity from $currentSku to $TargetSku..." -Level "Info"
+    Write-Log "About to call Scale-Capacity function" -Level "Info"
+    
+    try {
+        $scaleResponse = Scale-Capacity -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName -TargetSku $TargetSku -CurrentCapacity $capacity
+        
+        # Examine and log the response 
+        Write-Log "Scale operation response received. Response type: $($scaleResponse.GetType().FullName)" -Level "Info"
+        Write-Log "Scale operation response status: $($scaleResponse.properties.provisioningState)" -Level "Info"
+        Write-Log "Scale operation response SKU: $($scaleResponse.sku.name)" -Level "Info"
+    }
+    catch {
+        Write-Log "Exception thrown when calling Scale-Capacity: $($_.Exception.Message)" -Level "Error"
+        throw
+    }
+    
+    Write-Log "Returned from Scale-Capacity function" -Level "Info"
     
     # Wait for the scaling to complete if requested
     $finalStatus = $currentStatus
