@@ -2,19 +2,18 @@
 
 Automate the management of Microsoft Fabric capacities in Azure, allowing you to start, stop, and scale capacities on a schedule or through manual triggers.
 
-This script has been shared by the [Phoenix Dataworks](https://phoenixdaa.works). Contact us with any issues or if you need help with this or similar solutions.
+This script has been shared by the [Phoenix Dataworks](https://phoenixdata.works). Contact us with any issues or if you need help with this or similar solutions.
 
 ## Overview
 
-This solution deploys Azure Automation runbooks that can control Microsoft Fabric capacities in your Azure subscription. It requires existing resources and adds automation capabilities to them.
+This solution deploys Azure Automation runbooks that can control Microsoft Fabric capacities in your Azure subscription. It requires existing quota and builds all required services along with configuration.
 
 ## Quick Start
 
-1. Ensure you have an existing Azure Automation account and Fabric capacity
-2. Deploy the solution using the [ARM template](arm-templates/azuredeploy.json)
-3. Configure schedules for automatic start/stop of capacities
-4. Create manual webhooks for on-demand control
-5. Monitor automation job status in the Azure portal
+1. Ensure you have Fabric capacity quota in Azure
+2. Deploy the solution using the [ARM template](arm-templates/mainTemplate.json)
+3. Create manual webhooks for on-demand control
+4. Monitor automation job status in the Azure portal
 
 For detailed instructions, see the [Automated Deployment Guide](Automated-Deployment-Guide.md).
 
@@ -115,7 +114,7 @@ Role assignments are automatically created during deployment, ensuring proper pe
 
 ### Daily Office Hours
 
-1. Start capacity at 8:00 AM Monday-Friday
+1. Start capacity at 6:00 AM Monday-Friday
 2. Scale to appropriate size during peak hours
 3. Stop capacity at 6:00 PM Monday-Friday
 

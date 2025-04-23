@@ -270,28 +270,54 @@ function Wait-ForCapacityScaling {
         $timeout = (Get-Date).AddMinutes($TimeoutInMinutes)
         $status = $null
         $isScaled = $false
+        $failed = $false
+        $failureReason = ""
         $runningStates = @("Running", "Active") # Define target states
+        $failedStates = @("Paused", "Failed", "Error") # Define failure states
         
         Write-Log "Waiting for capacity to scale to $TargetSku..."
         
-        while ((Get-Date) -lt $timeout -and -not $isScaled) {
+        while ((Get-Date) -lt $timeout -and -not $isScaled -and -not $failed) {
             $capacity = Get-CapacityStatus -SubscriptionId $SubscriptionId -ResourceGroupName $ResourceGroupName -CapacityName $CapacityName
             $currentSku = $capacity.sku.name
             $state = $capacity.properties.state
+            $provisioningState = $capacity.properties.provisioningState
             
-            # Check if SKU matches AND state is Running or Active
+            # Check for failure conditions first
+            if ($failedStates -contains $state) {
+                $failed = $true
+                $failureReason = "Capacity entered $state state during scaling operation. This may indicate a quota limitation or other error."
+                Write-Log "Scaling operation failed: $failureReason" -Level "Error"
+                break
+            }
+            
+            # Check if provisioning state indicates failure
+            if ($provisioningState -eq "Failed") {
+                $failed = $true
+                $failureReason = "Provisioning state reported as Failed. This often indicates a quota limitation."
+                Write-Log "Scaling operation failed: $failureReason" -Level "Error"
+                break
+            }
+            
+            # Check for success condition
             if ($currentSku -eq $TargetSku -and ($runningStates -contains $state)) {
                 $isScaled = $true
                 Write-Log "Capacity has been successfully scaled to $TargetSku and is in $state state."
             }
             else {
-                Write-Log "Current SKU: $currentSku (Target: $TargetSku), Status: $state. Waiting 30 seconds..."
+                Write-Log "Current SKU: $currentSku (Target: $TargetSku), Status: $state, Provisioning: $provisioningState. Waiting 30 seconds..."
                 Start-Sleep -Seconds 30
             }
         }
         
-        if (-not $isScaled) {
-            Write-Log "Timeout waiting for capacity to scale. Last SKU: $currentSku, Status: $state" -Level "Warning"
+        if (-not $isScaled -and -not $failed) {
+            $failed = $true
+            $failureReason = "Timeout waiting for capacity to scale. Last SKU: $currentSku, Status: $state"
+            Write-Log $failureReason -Level "Error"
+        }
+        
+        if ($failed) {
+            throw $failureReason
         }
         
         return $isScaled
@@ -476,15 +502,45 @@ try {
     $finalStatus = $currentStatus
     $finalSku = $currentSku
     if ($WaitForCompletion) {
-        $isScaled = Wait-ForCapacityScaling -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName -TargetSku $TargetSku -TimeoutInMinutes $TimeoutInMinutes
-        
-        if ($isScaled) {
-            $finalStatus = "Running"
-            $finalSku = $TargetSku
+        try {
+            $isScaled = Wait-ForCapacityScaling -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName -TargetSku $TargetSku -TimeoutInMinutes $TimeoutInMinutes
+            
+            if ($isScaled) {
+                $finalStatus = "Running"
+                $finalSku = $TargetSku
+            }
+            else {
+                # This should not happen as Wait-ForCapacityScaling will throw an exception if scaling fails
+                $finalStatus = "ScalingFailed"
+                $finalSku = "Failed to scale to $TargetSku"
+                throw "Scaling operation failed to complete successfully"
+            }
         }
-        else {
-            $finalStatus = "Scaling"
-            $finalSku = "Scaling to $TargetSku"
+        catch {
+            # Get the updated capacity details after failure
+            $updatedCapacity = Get-CapacityStatus -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName
+            
+            # Return an error result with capacity details
+            $failureResult = @{
+                CapacityName = $capacityName
+                Status = $updatedCapacity.properties.state
+                SubscriptionId = $subscriptionId
+                ResourceGroup = $resourceGroupName
+                Region = $updatedCapacity.location
+                PreviousSKU = $currentSku
+                CurrentSKU = $updatedCapacity.sku.name
+                TargetSKU = $TargetSku
+                LastUpdated = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+                Error = $true
+                ErrorMessage = "Scaling operation failed: $($_.Exception.Message)"
+            }
+            
+            Write-Log "Scaling operation failed: $($_.Exception.Message)" -Level "Error"
+            
+            # Output the result but throw an exception to indicate failure
+            $failureOutput = $failureResult | ConvertTo-Json -Depth 5
+            Write-Output $failureOutput
+            throw "Scaling failed. Current capacity state: $($updatedCapacity.properties.state), SKU: $($updatedCapacity.sku.name). This may indicate a quota limitation."
         }
     }
     else {
@@ -495,10 +551,15 @@ try {
     # Get the updated capacity details
     $capacity = Get-CapacityStatus -SubscriptionId $subscriptionId -ResourceGroupName $resourceGroupName -CapacityName $capacityName
     
+    # Perform a final check to make sure we're not reporting success when actually failed
+    if ($capacity.sku.name -ne $TargetSku -and $WaitForCompletion) {
+        throw "Scaling operation did not result in the expected SKU change. Current SKU: $($capacity.sku.name), Target SKU: $TargetSku. This may indicate a quota limitation."
+    }
+    
     # Return the capacity details
     $result = @{
         CapacityName = $capacityName
-        Status = $finalStatus
+        Status = $capacity.properties.state  # Use actual state instead of our assumed $finalStatus
         SubscriptionId = $subscriptionId
         ResourceGroup = $resourceGroupName
         Region = $capacity.location
@@ -506,6 +567,7 @@ try {
         CurrentSKU = $capacity.sku.name
         TargetSKU = $TargetSku
         LastUpdated = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+        ScalingSuccessful = ($capacity.sku.name -eq $TargetSku)
     }
     
     return $result | ConvertTo-Json -Depth 5

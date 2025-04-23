@@ -22,9 +22,9 @@ Before deploying the solution, ensure you have:
 
 The latest version of the ARM template includes several important improvements:
 
-1. **Automatic Role Assignment**: The template now automatically assigns the Contributor role to the Automation account's managed identity at the resource group level, eliminating the need for manual role assignments.
+1. **Automatic Role Assignment**: The template automatically assigns the Contributor role to the Automation account's managed identity at the resource group level, eliminating the need for manual role assignments.
 
-2. **Enhanced Parameter Validation**: Parameters now include proper validation constraints to prevent deployment errors.
+2. **Enhanced Parameter Validation**: Parameters include proper validation constraints to prevent deployment errors.
 
 3. **Improved Documentation**: Parameter descriptions have been enhanced for better clarity.
 
@@ -32,7 +32,7 @@ The latest version of the ARM template includes several important improvements:
 
 When deploying through the Azure Portal, you'll encounter the following sections:
 
-1. **Basics**: Where you select your subscription and resource group (deployment name is now auto-generated)
+1. **Basics**: Where you select your subscription and resource group (deployment name is auto-generated)
 2. **Instance Details**: Where you configure core deployment settings including:
    - Region for deployment
    - Automation account settings (create new or use existing)
