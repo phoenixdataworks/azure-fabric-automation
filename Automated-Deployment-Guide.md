@@ -1,6 +1,6 @@
-# Azure Fabric Capacity Automation - Deployment Guide
+# Microsoft Fabric Capacity Automation - Deployment Guide
 
-This guide outlines the steps to automate the deployment of the Azure Fabric Capacity Automation solution.
+This guide outlines the steps to automate the deployment of the Microsoft Fabric Capacity Automation solution.
 
 ## Prerequisites
 

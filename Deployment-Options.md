@@ -1,6 +1,6 @@
-# Deployment Options for Azure Fabric Automation
+# Deployment Options for Microsoft Fabric Automation
 
-This document outlines different deployment options to handle certificate authentication for the Azure Fabric Capacity Automation solution, especially when you encounter permission issues.
+This document outlines different deployment options to handle certificate authentication for the Microsoft Fabric Capacity Automation solution, especially when you encounter permission issues.
 
 ## Understanding Certificate Authentication Options
 

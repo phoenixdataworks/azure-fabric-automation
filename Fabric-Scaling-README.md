@@ -1,6 +1,6 @@
-# Azure Fabric Capacity Scaling and Scheduling
+# Microsoft Fabric Capacity Scaling and Scheduling
 
-This extension to the Azure Fabric Capacity Automation solution adds the ability to scale Microsoft Fabric capacities as part of your automation workflows.
+This extension to the Microsoft Fabric Capacity Automation solution adds the ability to scale Microsoft Fabric capacities as part of your automation workflows.
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# Azure Fabric Capacity Automation
+# Microsoft Fabric Capacity Automation
 
 Automate the management of Microsoft Fabric capacities in Azure, allowing you to start, stop, and scale capacities on a schedule or through manual triggers.
 

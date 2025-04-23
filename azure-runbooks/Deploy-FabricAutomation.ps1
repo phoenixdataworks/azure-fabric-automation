@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Deploys the Azure Fabric Capacity Automation solution to an Azure Automation account.
+    Deploys the Microsoft Fabric Capacity Automation solution to an Azure Automation account.
 
 .DESCRIPTION
-    This script automates the deployment of the Azure Fabric Capacity Automation solution, including:
+    This script automates the deployment of the Microsoft Fabric Capacity Automation solution, including:
     1. Creating an Azure Automation account (if it doesn't exist)
     2. Importing required modules
     3. Importing all runbooks
@@ -738,7 +738,7 @@ function Ensure-RunAsAccount {
 # Main execution
 try {
     $scriptStartTime = Get-Date
-    Write-Log "Starting deployment of Azure Fabric Capacity Automation solution at $scriptStartTime"
+    Write-Log "Starting deployment of Microsoft Fabric Capacity Automation solution at $scriptStartTime"
     
     # Ensure required modules are installed
     Write-Log "Checking required PowerShell modules"
