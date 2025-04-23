@@ -27,12 +27,62 @@ For detailed instructions, see the [Automated Deployment Guide](Automated-Deploy
   - `Stop-FabricCapacity.ps1`: Stops a running capacity
   - `Scale-FabricCapacity.ps1`: Scales a capacity to a specified SKU
   - `Get-FabricCapacityStatus.ps1`: Gets the current status of a capacity
+- **Automatic Role Assignment**: Creates necessary RBAC permissions during deployment
 
 ## Prerequisites
 
 - An Azure subscription
 - Contributor access to the Azure subscription or resource group
 - PowerShell 7.0 or later (for local deployment)
+- Sufficient Fabric Capacity Units (CUs) quota in your Azure subscription for your desired SKU
+
+## Fabric Capacity Quotas
+
+Each Azure subscription has limits (quotas) on the number of Fabric Capacity Units (CUs) available. Before scaling to larger SKUs, verify your subscription has sufficient quota:
+
+- F2 requires 2 CUs, F4 requires 4 CUs, F8 requires 8 CUs, etc.
+- F64 requires 64 CUs, F128 requires 128 CUs, etc.
+
+To check your current quota:
+1. Sign in to the Azure portal
+2. Search for "quotas" and select **Quotas**
+3. Filter for **Microsoft Fabric** provider
+4. Check the difference between your limit and current usage
+
+If you need a quota increase, you can request it directly in the Azure portal through the Quotas page or by creating a support request.
+
+For more information on Fabric capacity quotas, see [Microsoft Fabric capacity quotas](https://learn.microsoft.com/en-us/fabric/enterprise/fabric-quotas).
+
+## Solution Architecture
+
+```mermaid
+graph TD
+    User([User]) -->|Configures| AzPortal[Azure Portal]
+    AzPortal -->|Deploys| ARM[ARM Template]
+    ARM -->|Creates/Configures| AA[Azure Automation Account]
+    ARM -->|Creates/Configures| FC[Fabric Capacity]
+    ARM -->|Assigns Role| RA[RBAC Role Assignment]
+    
+    AA -->|Has| MI((Managed Identity))
+    RA -->|Grants Permission| MI
+    MI -->|Controls| FC
+    
+    AA -->|Contains| RB[Runbooks]
+    AA -->|Contains| SCH[Schedules]
+    
+    RB -->|Execute| OPS[Start/Stop/Scale Operations]
+    SCH -->|Trigger| RB
+    
+    FC <-->|Provides Capacity For| PBI[Power BI Workspaces]
+    FC <-->|Provides Capacity For| DF[Data Factory Pipelines]
+    FC <-->|Provides Capacity For| SYN[Synapse Workspaces]
+    
+    PBI -->|Visualize| Data[(Data)]
+    DF -->|Process| Data
+    SYN -->|Analyze| Data
+    
+    OPS -->|Manage| FC
+```
 
 ## Deployment Options
 
@@ -56,10 +106,10 @@ For detailed instructions, see the [Automated Deployment Guide](Automated-Deploy
 ## Security and Permissions
 
 The solution uses a system-assigned managed identity with:
-- **Contributor** role on the Fabric capacity resources
+- **Contributor** role automatically assigned to the resource group containing the Fabric capacity
 - **Automation Job Operator** role on the Automation account
 
-Role assignments are automatically verified and managed by the role assignment verification process during deployment.
+Role assignments are automatically created during deployment, ensuring proper permissions to manage Fabric capacities.
 
 ## Common Usage Scenarios
 
@@ -104,16 +154,14 @@ The solution is highly configurable:
 ## Troubleshooting
 
 Common issues and their solutions:
-Common issues and their solutions:
 
-- **Permission errors**: Check that the managed identity has proper roles assigned and allow time for RBAC propagation
+- **Permission errors**: Verify role assignment has been created for the managed identity. Allow 5-10 minutes for RBAC propagation after deployment.
 - **Module import failures**: Verify the required modules are available in your Automation account
 - **Webhook failures**: Ensure the URL is valid and parameters are correctly formatted
 - **Resource errors**: Verify both the Automation account and Fabric capacity exist before deployment
 
 ## Contributing
 
-Contributions are welcome! Please open issues and pull requests on GitHub.
 Contributions are welcome! Please open issues and pull requests on GitHub.
 
 ## License

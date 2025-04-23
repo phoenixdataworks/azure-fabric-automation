@@ -18,6 +18,12 @@ This extension adds the following components to the core solution:
 1. **Scale-FabricCapacity.ps1**: A runbook to scale a Microsoft Fabric capacity to a different SKU
 2. **Schedule-FabricCapacityPattern.ps1**: A runbook to create complex schedule patterns that include scaling operations
 
+## Integration with Role-Based Access Control
+
+The solution now automatically creates a role assignment for the Automation account's managed identity, granting it Contributor access to the resource group. This ensures the runbooks can properly interact with the Fabric capacity without manual permission configuration.
+
+See the architectural diagram in the main [README.md](./README.md) for a visual representation of how the components interact, including the role assignment.
+
 ## Usage Scenarios
 
 ### Scaling for Batch Jobs
@@ -40,14 +46,26 @@ By using a larger capacity only when needed, you can significantly reduce costs 
 To scale a Fabric capacity manually, run the `Scale-FabricCapacity.ps1` runbook with the following parameters:
 
 - `CapacityId`: The ID of the Fabric capacity to scale
-- `TenantId`: Your Azure AD tenant ID
-- `ApplicationId`: The Application ID of your service principal
-- `CertificateThumbprint`: The thumbprint of your authentication certificate
 - `TargetSku`: The target SKU to scale to (F2, F4, F8, F16, F32, F64, F128, F256, F512, F1024)
 
 Optional parameters:
 - `WaitForCompletion`: Whether to wait for the scaling operation to complete (default: true)
 - `TimeoutInMinutes`: Maximum time to wait for completion (default: 10)
+
+### Quota Requirements for Scaling
+
+**Important**: Before scaling to larger SKUs, ensure your Azure subscription has sufficient Fabric Capacity Units (CU) quota:
+
+- Each SKU requires its corresponding number of CUs (F2 = 2 CUs, F64 = 64 CUs, etc.)
+- If you attempt to scale beyond your available quota, the operation will fail
+- Quota is checked at the time of scaling, not when creating the schedule
+
+To check and request quota increases:
+1. In the Azure Portal, go to **Quotas** > **Microsoft Fabric**
+2. View your current usage and quota limits
+3. Request increases through the portal or support ticket if needed
+
+For detailed information on managing Fabric quotas, refer to [Microsoft Fabric capacity quotas](https://learn.microsoft.com/en-us/fabric/enterprise/fabric-quotas).
 
 ### Setting Up a Complex Schedule Pattern
 
@@ -56,9 +74,6 @@ To create a complex schedule pattern, run the `Schedule-FabricCapacityPattern.ps
 - `ResourceGroupName`: The resource group containing your Azure Automation account
 - `AutomationAccountName`: The name of your Azure Automation account
 - `CapacityId`: The ID of the Fabric capacity to schedule
-- `TenantId`: Your Azure AD tenant ID
-- `ApplicationId`: The Application ID of your service principal
-- `CertificateThumbprint`: The thumbprint of your authentication certificate
 
 Optional parameters:
 - `StartTime`: Time to start the capacity (default: "06:00:00")
@@ -108,8 +123,8 @@ Refer to the [Power BI Dashboard Setup](./PowerBI-Dashboard-Setup.md) document f
 
 The scaling operations use the same security mechanisms as the core solution:
 
-- Service principal with certificate authentication
-- Limited permissions through RBAC
+- Automated role assignment at the resource group level
+- Managed identity authentication (no credentials needed)
 - Secure webhooks for external access
 
 ## Troubleshooting
@@ -126,6 +141,11 @@ The scaling operations use the same security mechanisms as the core solution:
 3. **Schedule doesn't execute at the expected time**
    - Verify the time zone setting is correct.
    - Check that the Azure Automation account has the necessary permissions.
+
+4. **Permission errors when running scaling operations**
+   - Verify the role assignment was created successfully.
+   - Wait 5-10 minutes for RBAC permissions to propagate.
+   - If needed, manually add the Contributor role for the managed identity.
 
 ## Next Steps
 

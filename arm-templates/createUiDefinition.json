@@ -242,7 +242,7 @@
             "name": "scaleDownTime",
             "type": "Microsoft.Common.TextBox",
             "label": "Scale Down Time (HH:MM)",
-            "defaultValue": "17:45",
+            "defaultValue": "07:00",
             "toolTip": "The time to scale down the capacity to the default size each day in 24-hour format (HH:MM).",
             "constraints": {
               "required": true,
@@ -267,7 +267,7 @@
             "type": "Microsoft.Common.DropDown",
             "label": "Time Zone",
             "toolTip": "The time zone to use for all schedules.",
-            "defaultValue": "America/Los_Angeles",
+            "defaultValue": "Pacific Time (US & Canada)",
             "constraints": {
               "required": true,
               "allowedValues": [

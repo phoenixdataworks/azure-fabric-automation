@@ -104,7 +104,7 @@
     },
     "scaleDownTime": {
       "type": "string",
-      "defaultValue": "17:45:00",
+      "defaultValue": "07:00:00",
       "metadata": {
         "description": "Time to scale down the capacity (HH:MM:SS)"
       }
@@ -134,7 +134,7 @@
       "type": "object",
       "defaultValue": {},
       "metadata": {
-        "description": "Tags for resources"
+        "description": "Tags for resources. Provide a JSON object where each key is a resource type and each value is an object of tags to apply to that resource type. Example: {'Department': 'IT', 'Environment': 'Production'}"
       }
     },
     "defaultSku": {
@@ -167,8 +167,10 @@
       "type": "string",
       "defaultValue": "[uniqueString(deployment().name)]",
       "metadata": {
-        "description": "A unique suffix for this deployment to avoid conflicts"
-      }
+        "description": "A unique suffix for this deployment to avoid conflicts with resource names and schedule identifiers"
+      },
+      "minLength": 1,
+      "maxLength": 64
     },
     "fabricCapacityAdministrator": {
       "type": "string",
@@ -429,6 +431,10 @@
     "fabricCapacityName": {
       "type": "string",
       "value": "[variables('fabricCapacityNameUnique')]"
+    },
+    "deploymentName": {
+      "type": "string",
+      "value": "[deployment().name]"
     }
   }
 } 
