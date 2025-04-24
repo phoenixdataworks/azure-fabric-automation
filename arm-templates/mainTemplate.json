@@ -8,6 +8,13 @@
     }
   },
   "parameters": {
+    "deploymentName": {
+      "type": "string",
+      "defaultValue": "[deployment().name]",
+      "metadata": {
+        "description": "Name of the deployment"
+      }
+    },
     "createNewAutomationAccount": {
       "type": "bool",
       "defaultValue": true,

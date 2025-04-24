@@ -6,7 +6,11 @@
     "template": {
       "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
       "contentVersion": "1.0.0.0",
-      "parameters": {},
+      "parameters": {
+        "deploymentName": {
+          "type": "string"
+        }
+      },
       "variables": {},
       "resources": [],
       "outputs": {}
@@ -30,7 +34,9 @@
         "toolTip": "Auto-generated name for this deployment instance.",
         "visible": false,
         "constraints": {
-          "required": true
+          "required": true,
+          "regex": "^[a-zA-Z0-9-]{3,64}$",
+          "validationMessage": "Deployment name must be 3-64 characters consisting of letters, numbers, and hyphens."
         }
       },
       {
@@ -373,7 +379,8 @@
             "resources": [
               "Microsoft.Automation/automationAccounts",
               "Microsoft.Fabric/capacities"
-            ]
+            ],
+            "toolTip": "Specify tags for resources to improve organization and management of your Azure resources."
           }
         ]
       }
